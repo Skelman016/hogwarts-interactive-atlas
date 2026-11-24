@@ -120,8 +120,8 @@ export default function App() {
   function openEdit(m){ if(!session||!canEdit||!editMode)return;setPendingPoint({x:m.map_x,y:m.map_y});setDraft({...m,tags:Array.isArray(m.tags)?m.tags.join(', '):''});setSelected(m.id);setModal(true); }
   async function saveMarker(e){
     e.preventDefault(); if(!session||!canEdit||!editMode){setNotice('Attiva la modalità modifica con un account autorizzato.');return;}setSaving(true);
-    const payload={title:draft.title.trim(),category:draft.category,description:draft.description,status:draft.status,difficulty:draft.difficulty||null,tags:draft.tags.split(',').map(t=>t.trim()).filter(Boolean),image_path:draft.image_path||null,map_x:pendingPoint.x,map_y:pendingPoint.y,owner_id:session.user.id};
-    const query=selected ? supabase.from('atlas_markers').update(payload).eq('id',selected) : supabase.from('atlas_markers').insert(payload);
+    const payload={title:draft.title.trim(),category:draft.category,description:draft.description,status:draft.status,difficulty:draft.difficulty||null,tags:draft.tags.split(',').map(t=>t.trim()).filter(Boolean),image_path:draft.image_path||null,map_x:pendingPoint.x,map_y:pendingPoint.y};
+    const query=selected ? supabase.from('atlas_markers').update(payload).eq('id',selected) : supabase.from('atlas_markers').insert({...payload,owner_id:session.user.id});
     const {error}=await query;
     setSaving(false);
     if(error){setNotice('Salvataggio non riuscito: '+error.message);return;}

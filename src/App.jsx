@@ -51,7 +51,7 @@ export default function App() {
   useEffect(()=>{ if(supabase && isDiscordUser) loadMarkers(); else { setMarkers([]); setLoading(false); } },[session, isDiscordUser]);
   async function loadMarkers(){
     setLoading(true);
-    const {data,error} = await supabase.from('atlas_markers').select('*').order('created_at',{ascending:false});
+    const {data,error} = await supabase.from('atlas_markers').select('id,title,category,description,map_x,map_y,status,difficulty,tags,image_path,metadata,created_at,updated_at').order('created_at',{ascending:false});
     if(error) setNotice('Impossibile caricare i marker: '+error.message);
     else setMarkers(data||[]);
     setLoading(false);
@@ -61,7 +61,7 @@ export default function App() {
   async function authenticateWithDiscord(){
     setAuthMessage('');
     if(!supabase){setAuthMessage('Connessione al servizio di accesso non disponibile.');return;}
-    const {error}=await supabase.auth.signInWithOAuth({provider:'discord',options:{redirectTo:'https://hogwarts-interactive-atlas.vercel.app'}});
+    const {error}=await supabase.auth.signInWithOAuth({provider:'discord',options:{redirectTo:'https://hogwarts-interactive-atlas.vercel.app',scopes:'identify'}});
     if(error)setAuthMessage('Accesso Discord non riuscito: '+error.message);
   }
   async function logout(){ await supabase.auth.signOut(); setAuthOpen(false); }
@@ -117,7 +117,7 @@ export default function App() {
         <p>Accedi con Discord per entrare nell'Atlante interattivo. La mappa e tutte le sue schede sono riservate agli utenti autenticati.</p>
         {authMessage&&<div className="auth-message">{authMessage}</div>}
         <button className="discord-oauth-button" type="button" onClick={authenticateWithDiscord}><DiscordMark size={21}/> <span>Accedi con Discord</span></button>
-        <small className="auth-footnote">Accesso sicuro tramite Discord OAuth · Non condividiamo la tua password.</small>
+        <small className="auth-footnote">Accesso sicuro tramite Discord OAuth · Non condividiamo la tua password.</small><nav className="legal-links" aria-label="Informazioni legali"><a href="/privacy.html">Privacy Policy</a><a href="/cookie.html">Cookie Policy</a><a href="/terms.html">Termini</a></nav>
       </section>
     </main>
     {!supabase&&<div className="config-warning">Configurazione Supabase mancante: imposta le variabili VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.</div>}
@@ -152,6 +152,7 @@ export default function App() {
       </section>
       {selectedMarker&&<aside className="detail-panel"><button className="close-detail" onClick={()=>setSelected(null)}><X size={18}/></button><span className="eyebrow">SCHEDA DEL LUOGO</span><div className="detail-icon" style={{color:categoryOf(selectedMarker.category).color}}>{categoryOf(selectedMarker.category).icon}</div><h2>{selectedMarker.title}</h2><span className="detail-category">{categoryOf(selectedMarker.category).label}</span><div className="status-pill">{STATUSES.find(s=>s.id===selectedMarker.status)?.label||selectedMarker.status}</div>{selectedMarker.description&&<p className="detail-description">{selectedMarker.description}</p>}{selectedMarker.difficulty&&<div className="detail-meta"><span>Difficoltà</span><b>{selectedMarker.difficulty}</b></div>}{selectedMarker.tags?.length>0&&<div className="tag-list">{selectedMarker.tags.map(t=><span key={t}>{t}</span>)}</div>}{session&&<div className="detail-actions"><button onClick={()=>openEdit(selectedMarker)}><Save size={15}/> MODIFICA</button><button className="delete" onClick={()=>deleteMarker(selectedMarker.id)}><Trash2 size={15}/> ELIMINA</button></div>}</aside>}
     </main>
+    <footer className="legal-footer"><a href="/privacy.html">Privacy Policy</a><a href="/cookie.html">Cookie Policy</a><a href="/terms.html">Termini di utilizzo</a><span>Progetto indipendente della community · Non affiliato a Warner Bros. o Avalanche Software.</span></footer>
     {notice&&<div className="toast" onClick={()=>setNotice('')}>{notice}<button><X size={14}/></button></div>}
     {loading&&<div className="loading-overlay"><div className="spinner"/>Sincronizzazione atlante...</div>}
     {authOpen&&<div className="modal-backdrop" onClick={()=>setAuthOpen(false)}><div className="dialog auth-dialog discord-auth-dialog" onClick={e=>e.stopPropagation()}><button type="button" className="dialog-close" onClick={()=>setAuthOpen(false)}><X/></button><div className="discord-auth-brand"><span className="discord-logo"><DiscordMark size={30}/></span><span>DISCORD</span></div><span className="eyebrow">ACCESSO ALL'ATLANTE</span><h2>Entra nel mondo magico</h2><p>Collega il tuo account Discord per consultare la mappa, esplorare i luoghi e contribuire all'archivio.</p>{authMessage&&<div className="auth-message">{authMessage}</div>}<button className="discord-oauth-button" type="button" onClick={authenticateWithDiscord}><DiscordMark size={21}/> <span>Accedi con Discord</span></button><small className="auth-footnote">Verrai reindirizzato a Discord per autorizzare l'accesso.</small></div></div>}

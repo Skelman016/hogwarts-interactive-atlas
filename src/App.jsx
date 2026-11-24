@@ -61,7 +61,7 @@ export default function App() {
   async function authenticateWithDiscord(){
     setAuthMessage('');
     if(!supabase){setAuthMessage('Connessione al servizio di accesso non disponibile.');return;}
-    const {error}=await supabase.auth.signInWithOAuth({provider:'discord',options:{redirectTo:window.location.origin}});
+    const {error}=await supabase.auth.signInWithOAuth({provider:'discord',options:{redirectTo:'https://hogwarts-interactive-atlas.vercel.app'}});
     if(error)setAuthMessage('Accesso Discord non riuscito: '+error.message);
   }
   async function logout(){ await supabase.auth.signOut(); setAuthOpen(false); }

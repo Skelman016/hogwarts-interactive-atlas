@@ -41,3 +41,18 @@
 .legal-footer{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:16px;padding:14px 20px;border-top:1px solid #c8ad6d22;background:#101b19;color:#8d9a8d;text-align:center}
 .legal-footer span{flex-basis:100%;font-size:10px;line-height:1.5}
 @media(max-width:700px){.legal-footer{gap:12px;padding:13px 12px}.legal-footer span{font-size:9px}}
+
+
+.account-dialog{width:min(100%,520px);max-height:min(90vh,760px);overflow-y:auto}
+.account-dialog h2{font:500 23px Cinzel,serif;color:#eee5d2;margin:12px 0}
+.account-dialog>p{font-size:12px;line-height:1.65;color:#aeb8a9;margin:0 0 18px}
+.account-warning{padding:15px 16px;margin:18px 0;background:#3b241f66;border:1px solid #a75d4c66;border-left:3px solid #bd6c58}
+.account-warning strong{font-size:12px;color:#e6a18f}
+.account-warning p{font-size:11px;line-height:1.7;color:#c8b6ad;margin:8px 0 0}
+.delete-confirm-label{display:block;font-size:11px;line-height:1.6;color:#c5cbbf;margin:18px 0}
+.delete-confirm-label strong{color:#e6a18f;letter-spacing:.4px}
+.delete-confirm-label input{display:block;width:100%;margin-top:8px;padding:12px 13px;background:#0c1512;border:1px solid #59675b;color:#f1eadc;outline:none}
+.delete-confirm-label input:focus{border-color:#c18a78}
+.danger-button{width:100%;padding:13px 14px;margin:3px 0 10px;background:#8e3f35;border:1px solid #bd6c58;color:#fff0e9;font-size:10px;letter-spacing:1px;font-weight:800}
+.danger-button:disabled{opacity:.4;cursor:not-allowed}
+.account-dialog>.export-button{width:100%}

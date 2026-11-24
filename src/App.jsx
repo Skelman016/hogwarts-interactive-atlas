@@ -68,20 +68,12 @@ export default function App() {
     const {data:{subscription}} = supabase.auth.onAuthStateChange((event,nextSession)=>{ setSession(nextSession); if(event === 'SIGNED_IN' && nextSession?.user?.app_metadata?.provider === 'discord'){ setWelcomeUser(nextSession.user); setAuthOpen(false); } });
     return ()=>subscription.unsubscribe();
   },[]);
-  useEffect(()=>{ if(supabase && isDiscordUser && session?.user){ loadMarkers(); syncAtlasProfile(); } else { setMarkers([]); setOwnedMarkerIds([]);setAtlasRole('viewer');setEditMode(false);setLoading(false); } },[session, isDiscordUser]);
+  useEffect(()=>{ if(supabase){ loadMarkers(); if(isDiscordUser && session?.user) syncAtlasProfile(); else { setAtlasRole('viewer');setEditMode(false); } } else { setMarkers([]);setOwnedMarkerIds([]);setAtlasRole('viewer');setEditMode(false);setLoading(false); } },[session, isDiscordUser]);
   useEffect(()=>{
-    if(!supabase || !isDiscordUser || !session?.user){ setMapUrl(''); return; }
-    let active=true;
-    const refreshMapUrl=async()=>{
-      const {data,error}=await supabase.storage.from('atlas-map-base').createSignedUrl('world-map-base',3600);
-      if(!active)return;
-      if(error){ setMapUrl(''); if(error.message && !/not found|object not found/i.test(error.message)) setNotice('Impossibile caricare la base cartografica: '+error.message); return; }
-      setMapUrl(data?.signedUrl||'');
-    };
-    refreshMapUrl();
-    const refreshTimer=setInterval(refreshMapUrl,50*60*1000);
-    return ()=>{ active=false; clearInterval(refreshTimer); };
-  },[session,isDiscordUser]);
+    if(!supabase){ setMapUrl(''); return; }
+    const {data}=supabase.storage.from('atlas-map-base').getPublicUrl('world-map-base');
+    setMapUrl(data?.publicUrl||'');
+  },[]);
   async function syncAtlasProfile(){
     const user=session?.user;if(!user)return;
     const profile={user_id:user.id,display_name:discordName(user),avatar_url:discordAvatar(user),updated_at:new Date().toISOString()};
@@ -106,10 +98,9 @@ export default function App() {
   }
   async function loadMarkers(){
     setLoading(true);
-    const [{data,error},{data:ownedData,error:ownedError}] = await Promise.all([
-      supabase.from('atlas_markers').select('id,title,category,description,map_x,map_y,status,difficulty,tags,image_path,metadata,created_at,updated_at').order('created_at',{ascending:false}),
-      supabase.from('atlas_markers').select('id').eq('owner_id',session.user.id)
-    ]);
+    const markerRequest=supabase.from('atlas_markers').select('id,title,category,description,map_x,map_y,status,difficulty,tags,image_path,metadata,created_at,updated_at').order('created_at',{ascending:false});
+    const ownedRequest=session?.user?.id?supabase.from('atlas_markers').select('id').eq('owner_id',session.user.id):Promise.resolve({data:[],error:null});
+    const [{data,error},{data:ownedData,error:ownedError}]=await Promise.all([markerRequest,ownedRequest]);
     if(error) setNotice('Impossibile caricare i marker: '+error.message);
     else setMarkers(data||[]);
     if(ownedError) setOwnedMarkerIds([]); else setOwnedMarkerIds((ownedData||[]).map(m=>m.id));
@@ -193,7 +184,7 @@ export default function App() {
 
   if (loading) return <div className="app-shell"><div className="loading-overlay"><div className="spinner"/>Verifica dell'accesso Discord...</div></div>;
 
-  if (!isDiscordUser) return <div className="app-shell">
+  if (!isDiscordUser && !supabase) return <div className="app-shell">
     <header className="topbar">
       <div className="brand"><div className="crest">✦</div><div><div className="brand-kicker">WIZARDING WORLD · FIELD GUIDE</div><h1>HOGWARTS <span>ATLAS</span></h1></div></div>
       <div className="top-actions"><div className="online"><span/> ACCESSO RISERVATO</div></div>
@@ -215,7 +206,7 @@ export default function App() {
   return <div className="app-shell">
     <header className="topbar">
       <div className="brand"><div className="crest">✦</div><div><div className="brand-kicker">WIZARDING WORLD · FIELD GUIDE</div><h1>HOGWARTS <span>ATLAS</span></h1></div></div>
-      <div className="top-actions"><div className="online"><span/> ATLANTE INTERATTIVO</div>{session&&<div className="top-discord-user">{discordAvatar(session.user)?<img src={discordAvatar(session.user)} alt=""/>:<span className="avatar-fallback">{discordName(session.user).slice(0,1).toUpperCase()}</span>}<span>{discordName(session.user)}</span></div>}{canEdit&&<button className={'mode-button '+(editMode?'active':'')} onClick={()=>setEditMode(v=>!v)} title="Attiva o disattiva la modalità modifica"><Pencil size={15}/><span>{editMode?'ESCI DA MODIFICA':'MODALITÀ MODIFICA'}</span></button>}{isAdmin&&<button className="icon-button" title="Gestione permessi" onClick={openAdminPanel}><Users size={17}/></button>}<button className="icon-button" title="Account e privacy" onClick={()=>{setDeleteConfirmation('');setAccountOpen(true)}}><UserRound size={17}/></button><button className="icon-button" title="Esci" onClick={logout}><LogOut size={17}/></button></div>
+      <div className="top-actions"><div className="online"><span/> ATLANTE INTERATTIVO</div>{!session&&<button className="login-button" onClick={()=>{setAuthOpen(true);setAuthMessage('')}}><LogIn size={15}/> ACCEDI</button>}{session&&<div className="top-discord-user">{discordAvatar(session.user)?<img src={discordAvatar(session.user)} alt=""/>:<span className="avatar-fallback">{discordName(session.user).slice(0,1).toUpperCase()}</span>}<span>{discordName(session.user)}</span></div>}{canEdit&&<button className={'mode-button '+(editMode?'active':'')} onClick={()=>setEditMode(v=>!v)} title="Attiva o disattiva la modalità modifica"><Pencil size={15}/><span>{editMode?'ESCI DA MODIFICA':'MODALITÀ MODIFICA'}</span></button>}{isAdmin&&<button className="icon-button" title="Gestione permessi" onClick={openAdminPanel}><Users size={17}/></button>}<button className="icon-button" title="Account e privacy" onClick={()=>{setDeleteConfirmation('');setAccountOpen(true)}}><UserRound size={17}/></button><button className="icon-button" title="Esci" onClick={logout}><LogOut size={17}/></button></div>
     </header>
     <main className="workspace">
       <aside className="sidebar">
@@ -225,7 +216,7 @@ export default function App() {
         <div className="filters">{CATEGORIES.map(c=><button key={c.id} className={'filter-row '+(activeFilters.includes(c.id)?'active':'')} onClick={()=>toggleFilter(c.id)}><span className="filter-symbol" style={{color:c.color}}>{c.icon}</span><span>{c.label}</span><span className="filter-count">{markers.filter(m=>m.category===c.id).length}</span><span className="check">{activeFilters.includes(c.id)?'✓':''}</span></button>)}</div>
         <div className="section-title marker-title"><span>REGISTRO MARKER</span><span className="total-count">{visibleMarkers.length}</span></div>
         <div className="marker-list">{visibleMarkers.length===0?<div className="empty-list">Nessun marker presente.<br/><small>Seleziona un punto sulla mappa per iniziare.</small></div>:visibleMarkers.map(m=><button key={m.id} className={'marker-row '+(selected===m.id?'chosen':'')} onClick={()=>setSelected(m.id)}><span className="marker-dot" style={{background:categoryOf(m.category).color}}/><span className="marker-name">{m.title}<small>{categoryOf(m.category).label} · {STATUSES.find(s=>s.id===m.status)?.label||m.status}</small></span><span className="chevron">›</span></button>)}</div>
-        <div className="sidebar-bottom"><div className="legend-note"><ShieldCheck size={16}/><span>Accesso Discord richiesto · Atlante riservato</span></div><button className="export-button" onClick={exportJson}>Esporta archivio JSON</button>{session&&<><button className="export-button" onClick={exportPersonalData}>Esporta i miei dati</button>{canEdit&&editMode&&<label className="import-button">Importa archivio JSON<input type="file" accept=".json,application/json" onChange={importJson}/></label>}</>}</div>
+        <div className="sidebar-bottom"><div className="legend-note"><ShieldCheck size={16}/><span>Consultazione pubblica · Modifiche riservate agli editor</span></div><button className="export-button" onClick={exportJson}>Esporta archivio JSON</button>{session&&<><button className="export-button" onClick={exportPersonalData}>Esporta i miei dati</button>{canEdit&&editMode&&<label className="import-button">Importa archivio JSON<input type="file" accept=".json,application/json" onChange={importJson}/></label>}</>}</div>
       </aside>
       <section className="map-area">
         <div className="map-toolbar"><div className="map-title"><span className="eyebrow">HIGHLANDS · SCOZIA</span><h2>Mappa del mondo</h2>{editMode&&canEdit&&<span className="edit-state"><Pencil size={12}/> MODALITÀ MODIFICA ATTIVA</span>}</div><div className="map-tools">{isAdmin&&<button title="Carica o sostituisci la base cartografica condivisa" onClick={()=>fileRef.current?.click()} disabled={saving}><ImageIcon size={16}/><span>{saving?'CARICAMENTO…':'BASE MAPPA'}</span></button>}<input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={uploadMap}/><button title="Riduci zoom" onClick={()=>setZoom(z=>Math.max(.5,z-.15))}><Minus size={16}/></button><span className="zoom-value">{Math.round(zoom*100)}%</span><button title="Aumenta zoom" onClick={()=>setZoom(z=>Math.min(5,z+.15))}><Plus size={16}/></button><button title="Centra mappa" onClick={()=>{setZoom(1);setPan({x:0,y:0})}}><LocateFixed size={16}/></button></div></div>

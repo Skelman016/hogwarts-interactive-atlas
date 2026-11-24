@@ -56,7 +56,7 @@ export default function App() {
   const [mapSettings,setMapSettings] = useState(false);
   const [saving,setSaving] = useState(false);
   const [notice,setNotice] = useState('');
-  const [showFilters,setShowFilters] = useState(false);
+  const [showFilters,setShowFilters] = useState(true);
   const [pan,setPan] = useState({x:0,y:0});
   const [drag,setDrag] = useState(null);
   const isDiscordUser = session?.user?.app_metadata?.provider === 'discord' || (session?.user?.app_metadata?.providers || []).includes('discord');
@@ -305,7 +305,7 @@ export default function App() {
         <div className="side-heading"><div><span className="eyebrow">ESPLORAZIONE</span><h2>Atlante</h2></div><Compass size={21}/></div>
         <label className="searchbox"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cerca un luogo, NPC..."/><kbd>⌕</kbd></label>
         <div className="section-title"><span>CATEGORIE</span><button onClick={()=>setShowFilters(!showFilters)}><SlidersHorizontal size={15}/></button></div>
-        <div className="filters">{CATEGORIES.map(c=><button key={c.id} className={'filter-row '+(activeFilters.includes(c.id)?'active':'')} onClick={()=>toggleFilter(c.id)}><span className="filter-symbol" style={{color:c.color}}>{c.icon}</span><span>{c.label}</span><span className="filter-count">{markers.filter(m=>m.category===c.id).length}</span><span className="check">{activeFilters.includes(c.id)?'✓':''}</span></button>)}</div>
+        {showFilters&&<div className="filters">{CATEGORIES.map(c=><button key={c.id} className={'filter-row '+(activeFilters.includes(c.id)?'active':'')} onClick={()=>toggleFilter(c.id)}><span className="filter-symbol" style={{color:c.color}}>{c.icon}</span><span>{c.label}</span><span className="filter-count">{markers.filter(m=>m.category===c.id).length}</span><span className="check">{activeFilters.includes(c.id)?'✓':''}</span></button>)}</div>}
         <div className="section-title marker-title"><span>REGISTRO MARKER</span><span className="total-count">{visibleMarkers.length}</span></div>
         <div className="marker-list">{visibleMarkers.length===0?<div className="empty-list">Nessun marker presente.<br/><small>Seleziona un punto sulla mappa per iniziare.</small></div>:visibleMarkers.map(m=><button key={m.id} className={'marker-row '+(selected===m.id?'chosen':'')} onClick={()=>setSelected(m.id)}><span className="marker-dot" style={{background:categoryOf(m.category).color}}/><span className="marker-name">{m.title}<small>{categoryOf(m.category).label} · {STATUSES.find(s=>s.id===m.status)?.label||m.status}</small></span><span className="chevron">›</span></button>)}</div>
         <div className="sidebar-bottom"><div className="legend-note"><ShieldCheck size={16}/><span>Consultazione pubblica · Modifiche riservate agli editor</span></div><button className="export-button" onClick={exportJson}>Esporta archivio JSON</button>{session&&<><button className="export-button" onClick={exportPersonalData}>Esporta i miei dati</button>{canEdit&&editMode&&<label className="import-button">Importa archivio JSON<input type="file" accept=".json,application/json" onChange={importJson}/></label>}</>}</div>

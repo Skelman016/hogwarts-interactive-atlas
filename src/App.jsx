@@ -143,7 +143,7 @@ export default function App() {
     const {error}=await supabase.auth.signInWithOAuth({provider:'discord',options:{redirectTo:window.location.origin,scopes:'identify'}});
     if(error)setAuthMessage('Accesso Discord non riuscito: '+error.message);
   }
-  async function logout(){ await supabase.auth.signOut(); setAuthOpen(false); setAccountOpen(false); setEditMode(false); }
+  async function logout(){const {error}=await supabase.auth.signOut();if(error){setNotice('Disconnessione non riuscita: '+error.message);return;}setAuthOpen(false);setAccountOpen(false);setEditMode(false);setSelected(null);setNotice('Disconnessione completata.');}
   async function deleteAccount(){
     if(!session || deleteConfirmation !== 'ELIMINA IL MIO ACCOUNT' || deletingAccount)return;
     setDeletingAccount(true);
@@ -160,18 +160,27 @@ export default function App() {
   function openNew(x,y){ if(!session){setAuthOpen(true);setAuthMessage('Accedi per consultare l’Atlante.');return;} if(!canEdit||!editMode)return;setPendingPoint({x,y});setDraft(emptyDraft);setDraftImageUrl('');setSelected(null);setModal(true); }
   function openEdit(m){ if(!session||!canEdit||!editMode)return;setPendingPoint({x:m.map_x,y:m.map_y});setDraft({...m,tags:Array.isArray(m.tags)?m.tags.join(', '):''});setDraftImageUrl('');setSelected(m.id);setModal(true); }
   async function saveMarker(e){
-    e.preventDefault(); if(!session||!canEdit||!editMode){setNotice('Attiva la modalità modifica con un account autorizzato.');return;}setSaving(true);
-    const payload={title:draft.title.trim(),category:draft.category,description:draft.description,status:draft.status,difficulty:draft.difficulty||null,tags:draft.tags.split(',').map(t=>t.trim()).filter(Boolean),image_path:draft.image_path||null,map_x:pendingPoint.x,map_y:pendingPoint.y};
-    const query=selected ? supabase.from('atlas_markers').update(payload).eq('id',selected) : supabase.from('atlas_markers').insert({...payload,owner_id:session.user.id});
+    e.preventDefault();
+    if(!session||!canEdit||!editMode||!pendingPoint){setNotice('Attiva la modalità modifica con un account autorizzato.');return;}
+    const title=draft.title.trim();
+    if(!title||title.length>120||!CATEGORIES.some(c=>c.id===draft.category)){setNotice('Controlla il nome e la categoria del marker.');return;}
+    if(!Number.isFinite(pendingPoint.x)||!Number.isFinite(pendingPoint.y)||pendingPoint.x<0||pendingPoint.x>1||pendingPoint.y<0||pendingPoint.y>1){setNotice('Coordinate del marker non valide.');return;}
+    setSaving(true);
+    const previous=selected?markers.find(m=>m.id===selected):null;
+    const payload={title,category:draft.category,description:(draft.description||'').trim().slice(0,5000),status:STATUSES.some(s=>s.id===draft.status)?draft.status:'unvisited',difficulty:['easy','medium','hard','boss'].includes(draft.difficulty)?draft.difficulty:null,tags:(draft.tags||'').split(',').map(t=>t.trim()).filter(Boolean).slice(0,30),image_path:draft.image_path||null,map_x:pendingPoint.x,map_y:pendingPoint.y};
+    const query=selected?supabase.from('atlas_markers').update(payload).eq('id',selected):supabase.from('atlas_markers').insert({...payload,owner_id:session.user.id});
     const {error}=await query;
-    setSaving(false);
-    if(error){setNotice('Salvataggio non riuscito: '+error.message);return;}
-    setModal(false);setSelected(null);setNotice('Marker salvato.');loadMarkers();
+    if(error){setSaving(false);setNotice('Salvataggio non riuscito: '+error.message);return;}
+    if(previous?.image_path&&previous.image_path!==payload.image_path){await supabase.storage.from('atlas-marker-images').remove([previous.image_path]);}
+    setSaving(false);setModal(false);setSelected(null);setDraftImageUrl('');setDetailImageUrl('');setNotice('Marker salvato.');await loadMarkers();
   }
   async function deleteMarker(id){
-    if(!session||!canEdit||!editMode || !confirm('Eliminare definitivamente questo marker?'))return;
+    if(!session||!canEdit||!editMode||!confirm('Eliminare definitivamente questo marker?'))return;
+    const target=markers.find(m=>m.id===id);
     const {error}=await supabase.from('atlas_markers').delete().eq('id',id);
-    if(error)setNotice(error.message);else{setSelected(null);setNotice('Marker eliminato.');loadMarkers();}
+    if(error){setNotice(error.message);return;}
+    if(target?.image_path)await supabase.storage.from('atlas-marker-images').remove([target.image_path]);
+    setSelected(null);setDetailImageUrl('');setNotice('Marker eliminato.');await loadMarkers();
   }
   function mapClick(e){
     if(suppressClickRef.current){ suppressClickRef.current=false; return; }
@@ -208,7 +217,23 @@ export default function App() {
   }
   function exportJson(){const blob=new Blob([JSON.stringify(markers,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='hogwarts-atlas-markers.json';a.click();URL.revokeObjectURL(url);}
   async function exportPersonalData(){if(!session)return;const {data,error}=await supabase.from('atlas_markers').select('*').eq('owner_id',session.user.id);if(error){setNotice('Esportazione dei tuoi dati non riuscita: '+error.message);return;}const u=session.user;const payload={exported_at:new Date().toISOString(),account:{id:u.id,provider:u.app_metadata?.provider||'discord',username:discordName(u),avatar_url:discordAvatar(u)},markers:data||[]};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='hogwarts-atlas-miei-dati.json';a.click();URL.revokeObjectURL(url);}
-  async function importJson(e){const f=e.target.files?.[0];if(!f||!session||!canEdit||!editMode){setNotice('Importazione disponibile solo in modalità modifica.');return;}try{const parsed=JSON.parse(await f.text());if(!Array.isArray(parsed))throw new Error('Il file deve contenere un array JSON.');const rows=parsed.map(({id,created_at,updated_at,...m})=>({...m,owner_id:session.user.id}));const {error}=await supabase.from('atlas_markers').insert(rows);if(error)throw error;loadMarkers();setNotice('Importazione completata.');}catch(err){setNotice('Importazione non riuscita: '+err.message);}e.target.value='';}
+  async function importJson(e){
+    const f=e.target.files?.[0];e.target.value='';
+    if(!f||!session||!canEdit||!editMode){setNotice('Importazione disponibile solo in modalità modifica.');return;}
+    if(f.size>5*1024*1024){setNotice('Il file JSON supera il limite di 5 MB.');return;}
+    try{
+      const parsed=JSON.parse(await f.text());
+      if(!Array.isArray(parsed)||parsed.length>2000)throw new Error('Il file deve contenere un array di massimo 2.000 marker.');
+      const rows=parsed.map((m,i)=>{
+        if(!m||typeof m!=='object'||!String(m.title||'').trim()||String(m.title).length>120)throw new Error('Nome non valido nel marker '+(i+1)+'.');
+        if(!CATEGORIES.some(cat=>cat.id===m.category))throw new Error('Categoria non valida nel marker '+(i+1)+'.');
+        if(!Number.isFinite(Number(m.map_x))||!Number.isFinite(Number(m.map_y))||Number(m.map_x)<0||Number(m.map_x)>1||Number(m.map_y)<0||Number(m.map_y)>1)throw new Error('Coordinate non valide nel marker '+(i+1)+'.');
+        return {owner_id:session.user.id,title:String(m.title).trim(),category:m.category,description:String(m.description||'').slice(0,5000),map_x:Number(m.map_x),map_y:Number(m.map_y),status:STATUSES.some(s=>s.id===m.status)?m.status:'unvisited',difficulty:['easy','medium','hard','boss'].includes(m.difficulty)?m.difficulty:null,tags:Array.isArray(m.tags)?m.tags.map(String).slice(0,30):[],metadata:m.metadata&&typeof m.metadata==='object'&&!Array.isArray(m.metadata)?m.metadata:{}};
+      });
+      for(let i=0;i<rows.length;i+=100){const {error}=await supabase.from('atlas_markers').insert(rows.slice(i,i+100));if(error)throw error;}
+      await loadMarkers();setNotice('Importazione completata: '+rows.length+' marker.');
+    }catch(err){setNotice('Importazione non riuscita: '+err.message);}
+  }
   async function uploadMarkerImage(e){
     const file=e.target.files?.[0];
     e.target.value='';

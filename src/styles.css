@@ -76,3 +76,12 @@
 /* Public atlas access and compact touch-friendly controls */
 .map-frame{touch-action:none;overscroll-behavior:contain}.map-image{user-select:none;-webkit-user-drag:none}.map-marker{touch-action:manipulation}.login-button{white-space:nowrap}
 @media(max-width:760px){.app-shell{height:auto;min-height:100vh}.topbar{padding:0 12px;height:auto;min-height:68px;gap:8px}.brand h1{font-size:15px;letter-spacing:1px}.brand-kicker{font-size:8px}.top-actions{gap:6px}.online{display:none}.workspace{flex-direction:column}.sidebar{width:100%;max-height:42vh;border-right:0;border-bottom:1px solid #35433a}.map-area{min-height:55vh}.map-frame{min-height:55vh}.map-tools button{padding:8px}.map-tools button span{display:none}}
+
+
+/* Marker media and editor form */
+.detail-marker-image{display:block;width:100%;max-height:220px;object-fit:cover;margin:16px 0;border:1px solid #59614a;background:#0c1412}
+.marker-image-preview{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid #40513f;background:#0d1712}
+.marker-image-preview img{display:block;width:100%;max-height:180px;object-fit:contain}
+.marker-image-preview button{align-self:flex-start;border:1px solid #795349;background:#342723;color:#e0a99b;padding:7px 10px;font-size:9px;letter-spacing:.5px}
+.marker-dialog input[type=file]{padding:9px;font-size:10px}
+.map-image{object-fit:contain;object-position:center center}

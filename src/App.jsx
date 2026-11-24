@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Search, Plus, Minus, LocateFixed, SlidersHorizontal, MapPin, X, LogIn, LogOut, Upload, Trash2, Save, Eye, EyeOff, Compass, Sparkles, ShieldCheck, Check, Image as ImageIcon } from 'lucide-react';
+import { Search, Plus, Minus, LocateFixed, SlidersHorizontal, MapPin, X, LogIn, LogOut, Upload, Trash2, Save, Eye, EyeOff, Compass, Sparkles, ShieldCheck, Check, UserRound, Image as ImageIcon } from 'lucide-react';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -20,6 +20,9 @@ export default function App() {
   const [ownedMarkerIds,setOwnedMarkerIds] = useState([]);
   const [loading,setLoading] = useState(true);
   const [authOpen,setAuthOpen] = useState(false);
+  const [accountOpen,setAccountOpen] = useState(false);
+  const [deleteConfirmation,setDeleteConfirmation] = useState('');
+  const [deletingAccount,setDeletingAccount] = useState(false);
 
   const [authMessage,setAuthMessage] = useState('');
   const [welcomeUser,setWelcomeUser] = useState(null);
@@ -70,6 +73,19 @@ export default function App() {
     if(error)setAuthMessage('Accesso Discord non riuscito: '+error.message);
   }
   async function logout(){ await supabase.auth.signOut(); setAuthOpen(false); }
+  async function deleteAccount(){
+    if(!session || deleteConfirmation !== 'ELIMINA IL MIO ACCOUNT' || deletingAccount)return;
+    setDeletingAccount(true);
+    const {data,error}=await supabase.functions.invoke('delete-account',{body:{confirmation:'ELIMINA IL MIO ACCOUNT'}});
+    if(error || !data?.success){
+      let message=data?.error || error?.message || 'La cancellazione non è stata completata.';
+      try { const details=await error?.context?.json(); if(details?.error) message=details.error; } catch {}
+      setNotice(message);setDeletingAccount(false);return;
+    }
+    await supabase.auth.signOut({scope:'local'});
+    setAccountOpen(false);setDeleteConfirmation('');setMarkers([]);setOwnedMarkerIds([]);
+    setNotice('Account e dati personali eliminati.');setDeletingAccount(false);
+  }
   function openNew(x,y){ if(!session){setAuthOpen(true);setAuthMessage('Accedi per aggiungere o modificare i marker.');return;} setPendingPoint({x,y});setDraft(emptyDraft);setSelected(null);setModal(true); }
   function openEdit(m){ if(!session)return;setPendingPoint({x:m.map_x,y:m.map_y});setDraft({...m,tags:Array.isArray(m.tags)?m.tags.join(', '):''});setSelected(m.id);setModal(true); }
   async function saveMarker(e){
@@ -132,7 +148,7 @@ export default function App() {
   return <div className="app-shell">
     <header className="topbar">
       <div className="brand"><div className="crest">✦</div><div><div className="brand-kicker">WIZARDING WORLD · FIELD GUIDE</div><h1>HOGWARTS <span>ATLAS</span></h1></div></div>
-      <div className="top-actions"><div className="online"><span/> ATLANTE INTERATTIVO</div>{session&&<div className="top-discord-user">{discordAvatar(session.user)?<img src={discordAvatar(session.user)} alt=""/>:<span className="avatar-fallback">{discordName(session.user).slice(0,1).toUpperCase()}</span>}<span>{discordName(session.user)}</span></div>}<button className="icon-button" title="Esci" onClick={logout}><LogOut size={17}/></button></div>
+      <div className="top-actions"><div className="online"><span/> ATLANTE INTERATTIVO</div>{session&&<div className="top-discord-user">{discordAvatar(session.user)?<img src={discordAvatar(session.user)} alt=""/>:<span className="avatar-fallback">{discordName(session.user).slice(0,1).toUpperCase()}</span>}<span>{discordName(session.user)}</span></div>}<button className="icon-button" title="Account e privacy" onClick={()=>{setDeleteConfirmation('');setAccountOpen(true)}}><UserRound size={17}/></button><button className="icon-button" title="Esci" onClick={logout}><LogOut size={17}/></button></div>
     </header>
     <main className="workspace">
       <aside className="sidebar">
@@ -161,6 +177,7 @@ export default function App() {
     <footer className="legal-footer"><a href="/privacy.html">Privacy Policy</a><a href="/cookie.html">Cookie Policy</a><a href="/terms.html">Termini di utilizzo</a><span>Progetto indipendente della community · Non affiliato a Warner Bros. o Avalanche Software.</span></footer>
     {notice&&<div className="toast" onClick={()=>setNotice('')}>{notice}<button><X size={14}/></button></div>}
     {loading&&<div className="loading-overlay"><div className="spinner"/>Sincronizzazione atlante...</div>}
+    {accountOpen&&<div className="modal-backdrop" onClick={()=>!deletingAccount&&setAccountOpen(false)}><section className="dialog account-dialog" onClick={e=>e.stopPropagation()}><button type="button" className="dialog-close" onClick={()=>setAccountOpen(false)} disabled={deletingAccount}><X/></button><span className="eyebrow">AREA PERSONALE</span><h2>Gestione account</h2><p>Account Discord collegato: <strong>{discordName(session?.user)}</strong></p><div className="account-warning"><strong>Eliminazione definitiva dell'account</strong><p>Questa operazione elimina il tuo account Supabase, tutti i marker che hai creato e le immagini personali archiviate nell'Atlante. Non potrai annullarla. I marker degli altri utenti non verranno toccati.</p></div><label className="delete-confirm-label">Per confermare, digita <strong>ELIMINA IL MIO ACCOUNT</strong><input value={deleteConfirmation} onChange={e=>setDeleteConfirmation(e.target.value)} placeholder="Scrivi la frase di conferma" autoComplete="off" disabled={deletingAccount}/></label><button type="button" className="danger-button" disabled={deleteConfirmation!=='ELIMINA IL MIO ACCOUNT'||deletingAccount} onClick={deleteAccount}>{deletingAccount?'ELIMINAZIONE IN CORSO...':'ELIMINA DEFINITIVAMENTE IL MIO ACCOUNT'}</button><button type="button" className="export-button" onClick={()=>setAccountOpen(false)} disabled={deletingAccount}>ANNULLA</button></section></div>}
     {authOpen&&<div className="modal-backdrop" onClick={()=>setAuthOpen(false)}><div className="dialog auth-dialog discord-auth-dialog" onClick={e=>e.stopPropagation()}><button type="button" className="dialog-close" onClick={()=>setAuthOpen(false)}><X/></button><div className="discord-auth-brand"><span className="discord-logo"><DiscordMark size={30}/></span><span>DISCORD</span></div><span className="eyebrow">ACCESSO ALL'ATLANTE</span><h2>Entra nel mondo magico</h2><p>Collega il tuo account Discord per consultare la mappa, esplorare i luoghi e contribuire all'archivio.</p>{authMessage&&<div className="auth-message">{authMessage}</div>}<button className="discord-oauth-button" type="button" onClick={authenticateWithDiscord}><DiscordMark size={21}/> <span>Accedi con Discord</span></button><small className="auth-footnote">Verrai reindirizzato a Discord per autorizzare l'accesso.</small></div></div>}
     {welcomeUser&&<div className="welcome-backdrop"><section className="welcome-card"><div className="welcome-spark">✦</div><span className="eyebrow">IDENTITÀ VERIFICATA · DISCORD</span><div className="welcome-avatar">{discordAvatar(welcomeUser)?<img src={discordAvatar(welcomeUser)} alt=""/>:<span>{discordName(welcomeUser).slice(0,1).toUpperCase()}</span>}<i>✓</i></div><h2>Benvenuto, <strong>{discordName(welcomeUser)}</strong></h2><p>Accesso completato. Le porte dell'Atlante sono aperte: la tua esplorazione può iniziare.</p><button className="welcome-enter-button" onClick={()=>setWelcomeUser(null)}>ENTRA NELL'ATLANTE <span>→</span></button></section></div>}
     {modal&&<div className="modal-backdrop" onClick={()=>setModal(false)}><form className="dialog marker-dialog" onClick={e=>e.stopPropagation()} onSubmit={saveMarker}><button type="button" className="dialog-close" onClick={()=>setModal(false)}><X/></button><span className="eyebrow">ARCHIVIO DELL'ATLANTE</span><h2>{selected?'Modifica marker':'Nuovo marker'}</h2><p className="coord-line">Posizione sulla mappa · X {Math.round(pendingPoint.x*1000)/10}% / Y {Math.round(pendingPoint.y*1000)/10}%</p><label>Nome del luogo<input required maxLength={100} value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})} placeholder="Es. Torre di San Bakar"/></label><label>Categoria<select value={draft.category} onChange={e=>setDraft({...draft,category:e.target.value})}>{CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}</select></label><label>Descrizione<textarea rows="4" value={draft.description||''} onChange={e=>setDraft({...draft,description:e.target.value})} placeholder="Dettagli, indicazioni, informazioni utili..."/></label><div className="form-grid"><label>Stato<select value={draft.status||'unvisited'} onChange={e=>setDraft({...draft,status:e.target.value})}>{STATUSES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}</select></label><label>Difficoltà<select value={draft.difficulty||''} onChange={e=>setDraft({...draft,difficulty:e.target.value})}><option value="">Non specificata</option><option value="easy">Facile</option><option value="medium">Media</option><option value="hard">Difficile</option><option value="boss">Boss</option></select></label></div><label>Tag <small>(separati da virgola)</small><input value={draft.tags||''} onChange={e=>setDraft({...draft,tags:e.target.value})} placeholder="tesoro, grotta, boss"/></label><button className="primary-button" type="submit" disabled={saving}>{saving?'SALVATAGGIO...':'SALVA NELL’ATLANTE'}</button></form></div>}

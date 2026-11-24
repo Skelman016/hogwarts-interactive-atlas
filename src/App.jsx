@@ -62,6 +62,7 @@ export default function App() {
   const isDiscordUser = session?.user?.app_metadata?.provider === 'discord' || (session?.user?.app_metadata?.providers || []).includes('discord');
   const canEdit = atlasRole === 'admin' || atlasRole === 'editor';
   const isAdmin = atlasRole === 'admin';
+  const selectedMarker = selected ? markers.find(m=>m.id===selected) : null;
   const mapRef = useRef(null);
   const frameRef = useRef(null);
   const markerImageRef = useRef(null);
@@ -137,7 +138,6 @@ export default function App() {
     setLoading(false);
   }
   const visibleMarkers = useMemo(()=>markers.filter(m=>activeFilters.includes(m.category) && (!search || [m.title,m.description,(m.tags||[]).join(' ')].join(' ').toLowerCase().includes(search.toLowerCase()))),[markers,activeFilters,search]);
-  const selectedMarker = selected ? markers.find(m=>m.id===selected) : null;
   async function authenticateWithDiscord(){
     setAuthMessage('');
     if(!supabase){setAuthMessage('Connessione al servizio di accesso non disponibile.');return;}

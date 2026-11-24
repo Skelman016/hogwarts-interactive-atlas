@@ -17,6 +17,7 @@ const emptyDraft = { title:'', category:'interest', description:'', status:'unvi
 export default function App() {
   const [session,setSession] = useState(null);
   const [markers,setMarkers] = useState([]);
+  const [ownedMarkerIds,setOwnedMarkerIds] = useState([]);
   const [loading,setLoading] = useState(true);
   const [authOpen,setAuthOpen] = useState(false);
 
@@ -51,9 +52,13 @@ export default function App() {
   useEffect(()=>{ if(supabase && isDiscordUser) loadMarkers(); else { setMarkers([]); setLoading(false); } },[session, isDiscordUser]);
   async function loadMarkers(){
     setLoading(true);
-    const {data,error} = await supabase.from('atlas_markers').select('id,owner_id,title,category,description,map_x,map_y,status,difficulty,tags,image_path,metadata,created_at,updated_at').order('created_at',{ascending:false});
+    const [{data,error},{data:ownedData,error:ownedError}] = await Promise.all([
+      supabase.from('atlas_markers').select('id,title,category,description,map_x,map_y,status,difficulty,tags,image_path,metadata,created_at,updated_at').order('created_at',{ascending:false}),
+      supabase.from('atlas_markers').select('id').eq('owner_id',session.user.id)
+    ]);
     if(error) setNotice('Impossibile caricare i marker: '+error.message);
     else setMarkers(data||[]);
+    if(ownedError) setOwnedMarkerIds([]); else setOwnedMarkerIds((ownedData||[]).map(m=>m.id));
     setLoading(false);
   }
   const visibleMarkers = useMemo(()=>markers.filter(m=>activeFilters.includes(m.category) && (!search || [m.title,m.description,(m.tags||[]).join(' ')].join(' ').toLowerCase().includes(search.toLowerCase()))),[markers,activeFilters,search]);
@@ -151,7 +156,7 @@ export default function App() {
         </div>
         <div className="map-footer"><span><Sparkles size={15}/> {markers.length} luoghi catalogati</span><span>Coordinate normalizzate · Sistema relativo alla mappa</span></div>
       </section>
-      {selectedMarker&&<aside className="detail-panel"><button className="close-detail" onClick={()=>setSelected(null)}><X size={18}/></button><span className="eyebrow">SCHEDA DEL LUOGO</span><div className="detail-icon" style={{color:categoryOf(selectedMarker.category).color}}>{categoryOf(selectedMarker.category).icon}</div><h2>{selectedMarker.title}</h2><span className="detail-category">{categoryOf(selectedMarker.category).label}</span><div className="status-pill">{STATUSES.find(s=>s.id===selectedMarker.status)?.label||selectedMarker.status}</div>{selectedMarker.description&&<p className="detail-description">{selectedMarker.description}</p>}{selectedMarker.difficulty&&<div className="detail-meta"><span>Difficoltà</span><b>{selectedMarker.difficulty}</b></div>}{selectedMarker.tags?.length>0&&<div className="tag-list">{selectedMarker.tags.map(t=><span key={t}>{t}</span>)}</div>}{session&&selectedMarker.owner_id===session.user.id&&<div className="detail-actions"><button onClick={()=>openEdit(selectedMarker)}><Save size={15}/> MODIFICA</button><button className="delete" onClick={()=>deleteMarker(selectedMarker.id)}><Trash2 size={15}/> ELIMINA</button></div>}</aside>}
+      {selectedMarker&&<aside className="detail-panel"><button className="close-detail" onClick={()=>setSelected(null)}><X size={18}/></button><span className="eyebrow">SCHEDA DEL LUOGO</span><div className="detail-icon" style={{color:categoryOf(selectedMarker.category).color}}>{categoryOf(selectedMarker.category).icon}</div><h2>{selectedMarker.title}</h2><span className="detail-category">{categoryOf(selectedMarker.category).label}</span><div className="status-pill">{STATUSES.find(s=>s.id===selectedMarker.status)?.label||selectedMarker.status}</div>{selectedMarker.description&&<p className="detail-description">{selectedMarker.description}</p>}{selectedMarker.difficulty&&<div className="detail-meta"><span>Difficoltà</span><b>{selectedMarker.difficulty}</b></div>}{selectedMarker.tags?.length>0&&<div className="tag-list">{selectedMarker.tags.map(t=><span key={t}>{t}</span>)}</div>}{session&&ownedMarkerIds.includes(selectedMarker.id)&&<div className="detail-actions"><button onClick={()=>openEdit(selectedMarker)}><Save size={15}/> MODIFICA</button><button className="delete" onClick={()=>deleteMarker(selectedMarker.id)}><Trash2 size={15}/> ELIMINA</button></div>}</aside>}
     </main>
     <footer className="legal-footer"><a href="/privacy.html">Privacy Policy</a><a href="/cookie.html">Cookie Policy</a><a href="/terms.html">Termini di utilizzo</a><span>Progetto indipendente della community · Non affiliato a Warner Bros. o Avalanche Software.</span></footer>
     {notice&&<div className="toast" onClick={()=>setNotice('')}>{notice}<button><X size={14}/></button></div>}

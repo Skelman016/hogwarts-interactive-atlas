@@ -150,11 +150,11 @@ export default function App() {
     if(!editMode)return;
     if(!mapRef.current)return;
     const rect=mapRef.current.getBoundingClientRect();
-    const x=Math.max(0,Math.min(1,(e.clientX-rect.left-pan.x)/(rect.width*zoom)));
-    const y=Math.max(0,Math.min(1,(e.clientY-rect.top-pan.y)/(rect.height*zoom)));
+    const x=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+    const y=Math.max(0,Math.min(1,(e.clientY-rect.top)/rect.height));
     openNew(x,y);
   }
-  function startDrag(e){ if(e.button!==0)return;setDrag({x:e.clientX,y:e.clientY,px:pan.x,py:pan.y,moved:false}); }
+  function startDrag(e){ if(e.button!==0 && e.pointerType!=='touch')return; e.currentTarget.setPointerCapture?.(e.pointerId);setDrag({x:e.clientX,y:e.clientY,px:pan.x,py:pan.y,moved:false}); }
   function moveDrag(e){if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;setDrag({...drag,moved:drag.moved||Math.abs(dx)+Math.abs(dy)>4});if(drag.moved||Math.abs(dx)+Math.abs(dy)>4){suppressClickRef.current=true;setPan({x:drag.px+dx,y:drag.py+dy});}}
   function endDrag(){setDrag(null);}
   function exportJson(){const blob=new Blob([JSON.stringify(markers,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='hogwarts-atlas-markers.json';a.click();URL.revokeObjectURL(url);}

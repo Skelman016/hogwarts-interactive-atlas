@@ -19,9 +19,7 @@ export default function App() {
   const [markers,setMarkers] = useState([]);
   const [loading,setLoading] = useState(true);
   const [authOpen,setAuthOpen] = useState(false);
-  const [authMode,setAuthMode] = useState('login');
-  const [email,setEmail] = useState('');
-  const [password,setPassword] = useState('');
+
   const [authMessage,setAuthMessage] = useState('');
   const [search,setSearch] = useState('');
   const [activeFilters,setActiveFilters] = useState(CATEGORIES.map(c=>c.id));
@@ -58,11 +56,11 @@ export default function App() {
   }
   const visibleMarkers = useMemo(()=>markers.filter(m=>activeFilters.includes(m.category) && (!search || [m.title,m.description,(m.tags||[]).join(' ')].join(' ').toLowerCase().includes(search.toLowerCase()))),[markers,activeFilters,search]);
   const selectedMarker = selected ? markers.find(m=>m.id===selected) : null;
-  async function authenticate(e){
-    e.preventDefault(); setAuthMessage('');
-    const action = authMode==='login' ? supabase.auth.signInWithPassword({email,password}) : supabase.auth.signUp({email,password});
-    const {error} = await action;
-    setAuthMessage(error ? error.message : authMode==='login' ? 'Accesso effettuato.' : 'Registrazione inviata. Se richiesto, conferma l’email.');
+  async function authenticateWithDiscord(){
+    setAuthMessage('');
+    if(!supabase){setAuthMessage('Connessione al servizio di accesso non disponibile.');return;}
+    const {error}=await supabase.auth.signInWithOAuth({provider:'discord',options:{redirectTo:window.location.origin}});
+    if(error)setAuthMessage('Accesso Discord non riuscito: '+error.message);
   }
   async function logout(){ await supabase.auth.signOut(); setAuthOpen(false); }
   function openNew(x,y){ if(!session){setAuthOpen(true);setAuthMessage('Accedi per aggiungere o modificare i marker.');return;} setPendingPoint({x,y});setDraft(emptyDraft);setSelected(null);setModal(true); }
@@ -102,7 +100,7 @@ export default function App() {
   return <div className="app-shell">
     <header className="topbar">
       <div className="brand"><div className="crest">✦</div><div><div className="brand-kicker">WIZARDING WORLD · FIELD GUIDE</div><h1>HOGWARTS <span>ATLAS</span></h1></div></div>
-      <div className="top-actions"><div className="online"><span/> ATLANTE INTERATTIVO</div>{session?<><span className="user-email">{session.user.email}</span><button className="icon-button" title="Esci" onClick={logout}><LogOut size={17}/></button></>:<button className="login-button" onClick={()=>setAuthOpen(true)}><LogIn size={16}/> ACCEDI</button>}</div>
+      <div className="top-actions"><div className="online"><span/> ATLANTE INTERATTIVO</div>{session?<><span className="user-email">{session.user.user_metadata?.global_name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Account Discord'}</span><button className="icon-button" title="Esci" onClick={logout}><LogOut size={17}/></button></>:<button className="login-button" onClick={()=>setAuthOpen(true)}><LogIn size={16}/> ACCEDI</button>}</div>
     </header>
     <main className="workspace">
       <aside className="sidebar">
@@ -130,7 +128,7 @@ export default function App() {
     </main>
     {notice&&<div className="toast" onClick={()=>setNotice('')}>{notice}<button><X size={14}/></button></div>}
     {loading&&<div className="loading-overlay"><div className="spinner"/>Sincronizzazione atlante...</div>}
-    {authOpen&&<div className="modal-backdrop" onClick={()=>setAuthOpen(false)}><form className="dialog auth-dialog" onClick={e=>e.stopPropagation()} onSubmit={authenticate}><button type="button" className="dialog-close" onClick={()=>setAuthOpen(false)}><X/></button><div className="dialog-emblem">✦</div><span className="eyebrow">AREA RISERVATA</span><h2>{authMode==='login'?'Bentornato, esploratore':'Crea un accesso'}</h2><p>La consultazione dell'atlante è pubblica. Per aggiungere e gestire i marker serve un account autorizzato.</p><label>Email<input type="email" required value={email} onChange={e=>setEmail(e.target.value)}/></label><label>Password<input type="password" required minLength={6} value={password} onChange={e=>setPassword(e.target.value)}/></label>{authMessage&&<div className="auth-message">{authMessage}</div>}<button className="primary-button" type="submit">{authMode==='login'?'ACCEDI':'REGISTRATI'}</button><button className="text-button" type="button" onClick={()=>{setAuthMode(authMode==='login'?'signup':'login');setAuthMessage('')}}>{authMode==='login'?'Non hai un account? Registrati':'Hai già un account? Accedi'}</button></form></div>}
+    {authOpen&&<div className="modal-backdrop" onClick={()=>setAuthOpen(false)}><div className="dialog auth-dialog" onClick={e=>e.stopPropagation()}><button type="button" className="dialog-close" onClick={()=>setAuthOpen(false)}><X/></button><div className="dialog-emblem">✦</div><span className="eyebrow">AREA RISERVATA</span><h2>Bentornato, esploratore</h2><p>La consultazione dell'atlante è pubblica. Accedi con Discord per aggiungere e gestire i marker.</p>{authMessage&&<div className="auth-message">{authMessage}</div>}<button className="primary-button discord-button" type="button" onClick={authenticateWithDiscord}><LogIn size={17}/> CONTINUA CON DISCORD</button><small className="auth-footnote">Non serve creare una nuova password per l'atlante.</small></div></div>}
     {modal&&<div className="modal-backdrop" onClick={()=>setModal(false)}><form className="dialog marker-dialog" onClick={e=>e.stopPropagation()} onSubmit={saveMarker}><button type="button" className="dialog-close" onClick={()=>setModal(false)}><X/></button><span className="eyebrow">ARCHIVIO DELL'ATLANTE</span><h2>{selected?'Modifica marker':'Nuovo marker'}</h2><p className="coord-line">Posizione sulla mappa · X {Math.round(pendingPoint.x*1000)/10}% / Y {Math.round(pendingPoint.y*1000)/10}%</p><label>Nome del luogo<input required maxLength={100} value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})} placeholder="Es. Torre di San Bakar"/></label><label>Categoria<select value={draft.category} onChange={e=>setDraft({...draft,category:e.target.value})}>{CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}</select></label><label>Descrizione<textarea rows="4" value={draft.description||''} onChange={e=>setDraft({...draft,description:e.target.value})} placeholder="Dettagli, indicazioni, informazioni utili..."/></label><div className="form-grid"><label>Stato<select value={draft.status||'unvisited'} onChange={e=>setDraft({...draft,status:e.target.value})}>{STATUSES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}</select></label><label>Difficoltà<select value={draft.difficulty||''} onChange={e=>setDraft({...draft,difficulty:e.target.value})}><option value="">Non specificata</option><option value="easy">Facile</option><option value="medium">Media</option><option value="hard">Difficile</option><option value="boss">Boss</option></select></label></div><label>Tag <small>(separati da virgola)</small><input value={draft.tags||''} onChange={e=>setDraft({...draft,tags:e.target.value})} placeholder="tesoro, grotta, boss"/></label><button className="primary-button" type="submit" disabled={saving}>{saving?'SALVATAGGIO...':'SALVA NELL’ATLANTE'}</button></form></div>}
     {!supabase&&<div className="config-warning">Configurazione Supabase mancante: imposta le variabili VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.</div>}
   </div>;

@@ -21,6 +21,7 @@ export default function App() {
   const [authOpen,setAuthOpen] = useState(false);
 
   const [authMessage,setAuthMessage] = useState('');
+  const [welcomeUser,setWelcomeUser] = useState(null);
   const [search,setSearch] = useState('');
   const [activeFilters,setActiveFilters] = useState(CATEGORIES.map(c=>c.id));
   const [selected,setSelected] = useState(null);
@@ -44,7 +45,7 @@ export default function App() {
   useEffect(()=>{
     if(!supabase){ setLoading(false); return; }
     supabase.auth.getSession().then(({data})=>setSession(data.session));
-    const {data:{subscription}} = supabase.auth.onAuthStateChange((_event,s)=>setSession(s));
+    const {data:{subscription}} = supabase.auth.onAuthStateChange((event,nextSession)=>{ setSession(nextSession); if(event === 'SIGNED_IN' && nextSession?.user?.app_metadata?.provider === 'discord'){ setWelcomeUser(nextSession.user); setAuthOpen(false); } });
     return ()=>subscription.unsubscribe();
   },[]);
   useEffect(()=>{ if(supabase && isDiscordUser) loadMarkers(); else { setMarkers([]); setLoading(false); } },[session, isDiscordUser]);
@@ -97,6 +98,9 @@ export default function App() {
   async function uploadMap(e){const f=e.target.files?.[0];if(!f)return;const url=URL.createObjectURL(f);setMapUrl(url);setMapUrlInput(url);setNotice('Anteprima locale caricata. Per renderla disponibile a tutti, pubblica la base cartografica nel progetto.');}
   function toggleFilter(id){setActiveFilters(old=>old.includes(id)?old.filter(x=>x!==id):[...old,id]);}
   const categoryOf=id=>CATEGORIES.find(c=>c.id===id)||CATEGORIES[0];
+  const discordName = user => user?.user_metadata?.global_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.user_metadata?.preferred_username || 'Esploratore';
+  const discordAvatar = user => user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null;
+  const DiscordMark = ({size=22}) => <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M19.73 5.1A19.3 19.3 0 0 0 14.98 3.6l-.58 1.18a17.8 17.8 0 0 0-4.8 0L9.02 3.6A19.2 19.2 0 0 0 4.27 5.1C1.26 9.57.45 13.93.85 18.23a19.4 19.4 0 0 0 5.82 2.95l1.25-2.03a12.6 12.6 0 0 1-1.97-.95l.48-.37c3.8 1.76 7.91 1.76 11.67 0l.49.37c-.63.37-1.29.69-1.98.95l1.25 2.03a19.3 19.3 0 0 0 5.82-2.95c.47-4.98-.8-9.3-3.95-13.13ZM8.73 14.9c-1.14 0-2.08-1.04-2.08-2.32s.92-2.33 2.08-2.33 2.1 1.05 2.08 2.33c0 1.28-.92 2.32-2.08 2.32Zm6.54 0c-1.14 0-2.08-1.04-2.08-2.32s.92-2.33 2.08-2.33 2.1 1.05 2.08 2.33c0 1.28-.91 2.32-2.08 2.32Z"/></svg>;
 
   if (loading) return <div className="app-shell"><div className="loading-overlay"><div className="spinner"/>Verifica dell'accesso Discord...</div></div>;
 
@@ -107,13 +111,13 @@ export default function App() {
     </header>
     <main className="workspace" style={{display:'grid',placeItems:'center',minHeight:'calc(100vh - 76px)',padding:'24px'}}>
       <section className="dialog auth-dialog" style={{position:'relative',margin:0,maxWidth:460,width:'100%'}}>
-        <div className="dialog-emblem">✦</div>
+        <div className="discord-auth-brand"><span className="discord-logo"><DiscordMark size={30}/></span><span>DISCORD</span></div>
         <span className="eyebrow">PORTALE DEGLI ESPLORATORI</span>
-        <h2>Accedi per consultare l'Atlante</h2>
-        <p>La mappa, i luoghi catalogati e tutte le schede sono riservati agli utenti autenticati. Continua con il tuo account Discord per entrare nell'Atlante.</p>
+        <h2>Il tuo viaggio comincia qui</h2>
+        <p>Accedi con Discord per entrare nell'Atlante interattivo. La mappa e tutte le sue schede sono riservate agli utenti autenticati.</p>
         {authMessage&&<div className="auth-message">{authMessage}</div>}
-        <button className="primary-button discord-button" type="button" onClick={authenticateWithDiscord}><LogIn size={17}/> ACCEDI CON DISCORD</button>
-        <small className="auth-footnote">L'accesso è richiesto anche per la sola consultazione.</small>
+        <button className="discord-oauth-button" type="button" onClick={authenticateWithDiscord}><DiscordMark size={21}/> <span>Accedi con Discord</span></button>
+        <small className="auth-footnote">Accesso sicuro tramite Discord OAuth · Non condividiamo la tua password.</small>
       </section>
     </main>
     {!supabase&&<div className="config-warning">Configurazione Supabase mancante: imposta le variabili VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.</div>}
@@ -122,7 +126,7 @@ export default function App() {
   return <div className="app-shell">
     <header className="topbar">
       <div className="brand"><div className="crest">✦</div><div><div className="brand-kicker">WIZARDING WORLD · FIELD GUIDE</div><h1>HOGWARTS <span>ATLAS</span></h1></div></div>
-      <div className="top-actions"><div className="online"><span/> ATLANTE INTERATTIVO</div>{session?<><span className="user-email">{session.user.user_metadata?.global_name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Account Discord'}</span><button className="icon-button" title="Esci" onClick={logout}><LogOut size={17}/></button></>:<button className="login-button" onClick={()=>setAuthOpen(true)}><LogIn size={16}/> ACCEDI</button>}</div>
+      <div className="top-actions"><div className="online"><span/> ATLANTE INTERATTIVO</div>{session&&<div className="top-discord-user">{discordAvatar(session.user)?<img src={discordAvatar(session.user)} alt=""/>:<span className="avatar-fallback">{discordName(session.user).slice(0,1).toUpperCase()}</span>}<span>{discordName(session.user)}</span></div>}<button className="icon-button" title="Esci" onClick={logout}><LogOut size={17}/></button></div>
     </header>
     <main className="workspace">
       <aside className="sidebar">
@@ -132,7 +136,7 @@ export default function App() {
         <div className="filters">{CATEGORIES.map(c=><button key={c.id} className={'filter-row '+(activeFilters.includes(c.id)?'active':'')} onClick={()=>toggleFilter(c.id)}><span className="filter-symbol" style={{color:c.color}}>{c.icon}</span><span>{c.label}</span><span className="filter-count">{markers.filter(m=>m.category===c.id).length}</span><span className="check">{activeFilters.includes(c.id)?'✓':''}</span></button>)}</div>
         <div className="section-title marker-title"><span>REGISTRO MARKER</span><span className="total-count">{visibleMarkers.length}</span></div>
         <div className="marker-list">{visibleMarkers.length===0?<div className="empty-list">Nessun marker presente.<br/><small>Seleziona un punto sulla mappa per iniziare.</small></div>:visibleMarkers.map(m=><button key={m.id} className={'marker-row '+(selected===m.id?'chosen':'')} onClick={()=>setSelected(m.id)}><span className="marker-dot" style={{background:categoryOf(m.category).color}}/><span className="marker-name">{m.title}<small>{categoryOf(m.category).label} · {STATUSES.find(s=>s.id===m.status)?.label||m.status}</small></span><span className="chevron">›</span></button>)}</div>
-        <div className="sidebar-bottom"><div className="legend-note"><ShieldCheck size={16}/><span>Consultazione pubblica · Modifiche con accesso</span></div><button className="export-button" onClick={exportJson}>Esporta archivio JSON</button>{session&&<label className="import-button">Importa archivio JSON<input type="file" accept=".json,application/json" onChange={importJson}/></label>}</div>
+        <div className="sidebar-bottom"><div className="legend-note"><ShieldCheck size={16}/><span>Accesso Discord richiesto · Atlante riservato</span></div><button className="export-button" onClick={exportJson}>Esporta archivio JSON</button>{session&&<label className="import-button">Importa archivio JSON<input type="file" accept=".json,application/json" onChange={importJson}/></label>}</div>
       </aside>
       <section className="map-area">
         <div className="map-toolbar"><div className="map-title"><span className="eyebrow">HIGHLANDS · SCOZIA</span><h2>Mappa del mondo</h2></div><div className="map-tools"><button title="Carica base cartografica" onClick={()=>session?fileRef.current?.click():setAuthOpen(true)}><ImageIcon size={16}/><span>BASE MAPPA</span></button><input ref={fileRef} type="file" accept="image/*" hidden onChange={uploadMap}/><button title="Riduci zoom" onClick={()=>setZoom(z=>Math.max(.5,z-.15))}><Minus size={16}/></button><span className="zoom-value">{Math.round(zoom*100)}%</span><button title="Aumenta zoom" onClick={()=>setZoom(z=>Math.min(3,z+.15))}><Plus size={16}/></button><button title="Centra mappa" onClick={()=>{setZoom(1);setPan({x:0,y:0})}}><LocateFixed size={16}/></button></div></div>
@@ -150,7 +154,8 @@ export default function App() {
     </main>
     {notice&&<div className="toast" onClick={()=>setNotice('')}>{notice}<button><X size={14}/></button></div>}
     {loading&&<div className="loading-overlay"><div className="spinner"/>Sincronizzazione atlante...</div>}
-    {authOpen&&<div className="modal-backdrop" onClick={()=>setAuthOpen(false)}><div className="dialog auth-dialog" onClick={e=>e.stopPropagation()}><button type="button" className="dialog-close" onClick={()=>setAuthOpen(false)}><X/></button><div className="dialog-emblem">✦</div><span className="eyebrow">AREA RISERVATA</span><h2>Bentornato, esploratore</h2><p>La consultazione dell'atlante è pubblica. Accedi con Discord per aggiungere e gestire i marker.</p>{authMessage&&<div className="auth-message">{authMessage}</div>}<button className="primary-button discord-button" type="button" onClick={authenticateWithDiscord}><LogIn size={17}/> CONTINUA CON DISCORD</button><small className="auth-footnote">Non serve creare una nuova password per l'atlante.</small></div></div>}
+    {authOpen&&<div className="modal-backdrop" onClick={()=>setAuthOpen(false)}><div className="dialog auth-dialog discord-auth-dialog" onClick={e=>e.stopPropagation()}><button type="button" className="dialog-close" onClick={()=>setAuthOpen(false)}><X/></button><div className="discord-auth-brand"><span className="discord-logo"><DiscordMark size={30}/></span><span>DISCORD</span></div><span className="eyebrow">ACCESSO ALL'ATLANTE</span><h2>Entra nel mondo magico</h2><p>Collega il tuo account Discord per consultare la mappa, esplorare i luoghi e contribuire all'archivio.</p>{authMessage&&<div className="auth-message">{authMessage}</div>}<button className="discord-oauth-button" type="button" onClick={authenticateWithDiscord}><DiscordMark size={21}/> <span>Accedi con Discord</span></button><small className="auth-footnote">Verrai reindirizzato a Discord per autorizzare l'accesso.</small></div></div>}
+    {welcomeUser&&<div className="welcome-backdrop"><section className="welcome-card"><div className="welcome-spark">✦</div><span className="eyebrow">IDENTITÀ VERIFICATA · DISCORD</span><div className="welcome-avatar">{discordAvatar(welcomeUser)?<img src={discordAvatar(welcomeUser)} alt=""/>:<span>{discordName(welcomeUser).slice(0,1).toUpperCase()}</span>}<i>✓</i></div><h2>Benvenuto, <strong>{discordName(welcomeUser)}</strong></h2><p>Accesso completato. Le porte dell'Atlante sono aperte: la tua esplorazione può iniziare.</p><button className="welcome-enter-button" onClick={()=>setWelcomeUser(null)}>ENTRA NELL'ATLANTE <span>→</span></button></section></div>}
     {modal&&<div className="modal-backdrop" onClick={()=>setModal(false)}><form className="dialog marker-dialog" onClick={e=>e.stopPropagation()} onSubmit={saveMarker}><button type="button" className="dialog-close" onClick={()=>setModal(false)}><X/></button><span className="eyebrow">ARCHIVIO DELL'ATLANTE</span><h2>{selected?'Modifica marker':'Nuovo marker'}</h2><p className="coord-line">Posizione sulla mappa · X {Math.round(pendingPoint.x*1000)/10}% / Y {Math.round(pendingPoint.y*1000)/10}%</p><label>Nome del luogo<input required maxLength={100} value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})} placeholder="Es. Torre di San Bakar"/></label><label>Categoria<select value={draft.category} onChange={e=>setDraft({...draft,category:e.target.value})}>{CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}</select></label><label>Descrizione<textarea rows="4" value={draft.description||''} onChange={e=>setDraft({...draft,description:e.target.value})} placeholder="Dettagli, indicazioni, informazioni utili..."/></label><div className="form-grid"><label>Stato<select value={draft.status||'unvisited'} onChange={e=>setDraft({...draft,status:e.target.value})}>{STATUSES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}</select></label><label>Difficoltà<select value={draft.difficulty||''} onChange={e=>setDraft({...draft,difficulty:e.target.value})}><option value="">Non specificata</option><option value="easy">Facile</option><option value="medium">Media</option><option value="hard">Difficile</option><option value="boss">Boss</option></select></label></div><label>Tag <small>(separati da virgola)</small><input value={draft.tags||''} onChange={e=>setDraft({...draft,tags:e.target.value})} placeholder="tesoro, grotta, boss"/></label><button className="primary-button" type="submit" disabled={saving}>{saving?'SALVATAGGIO...':'SALVA NELL’ATLANTE'}</button></form></div>}
     {!supabase&&<div className="config-warning">Configurazione Supabase mancante: imposta le variabili VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.</div>}
   </div>;

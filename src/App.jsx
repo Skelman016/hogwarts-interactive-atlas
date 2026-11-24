@@ -6,7 +6,16 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 const CATEGORIES = [
-  { id:'interest', label:'Punti di interesse', color:'#d6b66b', icon:'✦' },
+  { id:'village', label:'Villaggi e insediamenti', color:'#d6b66b', icon:'⌂' },
+  { id:'floo', label:'Fiamme della Metropolvere', color:'#e08a54', icon:'✹' },
+  { id:'merlin', label:'Prove di Merlino', color:'#83b7a0', icon:'✧' },
+  { id:'vault', label:'Cave del tesoro', color:'#b79a70', icon:'◇' },
+  { id:'dungeon', label:'Dungeon e rovine', color:'#a88dc0', icon:'▣' },
+  { id:'camp', label:'Accampamenti', color:'#c87969', icon:'⚔' },
+  { id:'beast', label:'Tane delle creature', color:'#8ba86f', icon:'♧' },
+  { id:'collectible', label:'Collezionabili', color:'#d8c77e', icon:'✦' },
+  { id:'resource', label:'Risorse e materiali', color:'#79a9bd', icon:'◈' },
+  { id:'interest', label:'Altri punti di interesse', color:'#d6b66b', icon:'✦' },
   { id:'npc_enemy', label:'NPC e nemici', color:'#c87969', icon:'⚔' },
   { id:'farm', label:'Punti farm', color:'#83a879', icon:'✧' },
   { id:'strategic', label:'Punti strategici', color:'#79a9bd', icon:'⌖' }
@@ -223,7 +232,7 @@ export default function App() {
         <div className="map-frame" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerLeave={endDrag} onWheel={e=>{e.preventDefault();setZoom(z=>Math.max(.5,Math.min(5,z*(e.deltaY<0?1.12:.89))))}}>
           <div className="map-grid" style={{transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`}} ref={mapRef} onClick={mapClick}>
             {mapUrl?<img className="map-image" src={mapUrl} alt="Base cartografica globale delle Highlands" draggable="false"/>:<div className="map-placeholder"><div className="placeholder-ring ring-one"/><div className="placeholder-ring ring-two"/><div className="placeholder-compass">✥</div><div className="placeholder-content"><div className="placeholder-emblem">✦</div><span className="eyebrow">HOGWARTS LEGACY</span><h3>La mappa attende<br/>il suo esploratore</h3><p>La base cartografica globale originale non è ancora stata inserita.</p><small>Carica un'immagine della mappa per iniziare a posizionare i marker.</small></div><div className="map-label label-north">N O R D</div><div className="map-label label-east">HIGHLANDS</div><div className="map-label label-south">S C O Z I A</div></div>}
-            {visibleMarkers.map(m=><button key={m.id} className={'map-marker '+(selected===m.id?'selected':'')} style={{left:(m.map_x*100)+'%',top:(m.map_y*100)+'%', '--marker-color':categoryOf(m.category).color}} title={m.title} onClick={e=>{e.stopPropagation();setSelected(m.id)}}><span className="marker-pip">{categoryOf(m.category).icon}</span><span className="marker-tooltip">{m.title}</span></button>)}
+            {visibleMarkers.map(m=><button key={m.id} className={'map-marker '+(selected===m.id?'selected':'')} style={{left:(m.map_x*100)+'%',top:(m.map_y*100)+'%', '--marker-color':categoryOf(m.category).color, '--marker-size':m.category==='village'?'18px':'24px'}} title={m.title} onClick={e=>{e.stopPropagation();setSelected(m.id)}}><span className="marker-pip">{categoryOf(m.category).icon}</span><span className="marker-tooltip">{m.title}</span></button>)}
           </div>
           <div className="map-instruction"><MapPin size={14}/> {!canEdit?'MODALITÀ VISUALIZZAZIONE · SOLO CONSULTAZIONE':!editMode?'ATTIVA MODALITÀ MODIFICA PER AGGIUNGERE PUNTI':'CLICCA SULLA MAPPA PER AGGIUNGERE UN PUNTO'}</div>
           <div className="map-coordinates">MAP DATA · HOGWARTS LEGACY <span>◇</span> WIZARDING ATLAS</div>

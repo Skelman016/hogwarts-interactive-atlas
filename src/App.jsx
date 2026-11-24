@@ -75,6 +75,7 @@ export default function App() {
     return ()=>subscription.unsubscribe();
   },[]);
   useEffect(()=>{ if(supabase){ loadMarkers(); if(isDiscordUser && session?.user) syncAtlasProfile(); else { setAtlasRole('viewer');setEditMode(false); } } else { setMarkers([]);setOwnedMarkerIds([]);setAtlasRole('viewer');setEditMode(false);setLoading(false); } },[session, isDiscordUser]);
+  useEffect(()=>{if(!session){setAtlasRole('viewer');setEditMode(false);setOwnedMarkerIds([]);}},[session]);
   useEffect(()=>{
     if(!supabase){ setMapUrl(''); return; }
     const {data}=supabase.storage.from('atlas-map-base').getPublicUrl('world-map-base');
@@ -104,11 +105,11 @@ export default function App() {
     return {left:(width-contentWidth)/2,top:(height-contentHeight)/2,width:contentWidth,height:contentHeight};
   },[frameSize,imageSize]);
   async function syncAtlasProfile(){
-    const user=session?.user;if(!user)return;
+    const user=session?.user;if(!user||!isDiscordUser)return;
     const profile={user_id:user.id,display_name:discordName(user),avatar_url:discordAvatar(user),updated_at:new Date().toISOString()};
     const {error}=await supabase.from('atlas_profiles').upsert(profile,{onConflict:'user_id'});
     if(error){setNotice('Impossibile aggiornare il profilo Atlante: '+error.message);return;}
-    const {data, error:roleError}=await supabase.rpc('get_my_atlas_role');
+    const {data,error:roleError}=await supabase.rpc('get_my_atlas_role');
     if(roleError){setNotice('Impossibile verificare i permessi: '+roleError.message);return;}
     setAtlasRole(data||'viewer');
   }
@@ -140,7 +141,7 @@ export default function App() {
   async function authenticateWithDiscord(){
     setAuthMessage('');
     if(!supabase){setAuthMessage('Connessione al servizio di accesso non disponibile.');return;}
-    const {error}=await supabase.auth.signInWithOAuth({provider:'discord',options:{redirectTo:window.location.origin,scopes:'identify'}});
+    const {error}=await supabase.auth.signInWithOAuth({provider:'discord',options:{redirectTo:window.location.origin,scopes:'identify',queryParams:{prompt:'none'}}});
     if(error)setAuthMessage('Accesso Discord non riuscito: '+error.message);
   }
   async function logout(){const {error}=await supabase.auth.signOut();if(error){setNotice('Disconnessione non riuscita: '+error.message);return;}setAuthOpen(false);setAccountOpen(false);setEditMode(false);setSelected(null);setNotice('Disconnessione completata.');}

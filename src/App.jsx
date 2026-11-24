@@ -36,6 +36,7 @@ export default function App() {
   const [showFilters,setShowFilters] = useState(false);
   const [pan,setPan] = useState({x:0,y:0});
   const [drag,setDrag] = useState(null);
+  const isDiscordUser = session?.user?.app_metadata?.provider === 'discord' || (session?.user?.app_metadata?.providers || []).includes('discord');
   const mapRef = useRef(null);
   const fileRef = useRef(null);
   const suppressClickRef = useRef(false);
@@ -46,7 +47,7 @@ export default function App() {
     const {data:{subscription}} = supabase.auth.onAuthStateChange((_event,s)=>setSession(s));
     return ()=>subscription.unsubscribe();
   },[]);
-  useEffect(()=>{ if(supabase) loadMarkers(); },[session]);
+  useEffect(()=>{ if(supabase && isDiscordUser) loadMarkers(); else { setMarkers([]); setLoading(false); } },[session, isDiscordUser]);
   async function loadMarkers(){
     setLoading(true);
     const {data,error} = await supabase.from('atlas_markers').select('*').order('created_at',{ascending:false});
@@ -96,6 +97,27 @@ export default function App() {
   async function uploadMap(e){const f=e.target.files?.[0];if(!f)return;const url=URL.createObjectURL(f);setMapUrl(url);setMapUrlInput(url);setNotice('Anteprima locale caricata. Per renderla disponibile a tutti, pubblica la base cartografica nel progetto.');}
   function toggleFilter(id){setActiveFilters(old=>old.includes(id)?old.filter(x=>x!==id):[...old,id]);}
   const categoryOf=id=>CATEGORIES.find(c=>c.id===id)||CATEGORIES[0];
+
+  if (loading) return <div className="app-shell"><div className="loading-overlay"><div className="spinner"/>Verifica dell'accesso Discord...</div></div>;
+
+  if (!isDiscordUser) return <div className="app-shell">
+    <header className="topbar">
+      <div className="brand"><div className="crest">✦</div><div><div className="brand-kicker">WIZARDING WORLD · FIELD GUIDE</div><h1>HOGWARTS <span>ATLAS</span></h1></div></div>
+      <div className="top-actions"><div className="online"><span/> ACCESSO RISERVATO</div></div>
+    </header>
+    <main className="workspace" style={{display:'grid',placeItems:'center',minHeight:'calc(100vh - 76px)',padding:'24px'}}>
+      <section className="dialog auth-dialog" style={{position:'relative',margin:0,maxWidth:460,width:'100%'}}>
+        <div className="dialog-emblem">✦</div>
+        <span className="eyebrow">PORTALE DEGLI ESPLORATORI</span>
+        <h2>Accedi per consultare l'Atlante</h2>
+        <p>La mappa, i luoghi catalogati e tutte le schede sono riservati agli utenti autenticati. Continua con il tuo account Discord per entrare nell'Atlante.</p>
+        {authMessage&&<div className="auth-message">{authMessage}</div>}
+        <button className="primary-button discord-button" type="button" onClick={authenticateWithDiscord}><LogIn size={17}/> ACCEDI CON DISCORD</button>
+        <small className="auth-footnote">L'accesso è richiesto anche per la sola consultazione.</small>
+      </section>
+    </main>
+    {!supabase&&<div className="config-warning">Configurazione Supabase mancante: imposta le variabili VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.</div>}
+  </div>;
 
   return <div className="app-shell">
     <header className="topbar">

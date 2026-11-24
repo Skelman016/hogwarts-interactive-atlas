@@ -40,7 +40,6 @@ export default function App() {
   const [pendingPoint,setPendingPoint] = useState(null);
   const [zoom,setZoom] = useState(1);
   const [mapUrl,setMapUrl] = useState('');
-  const [mapUrlInput,setMapUrlInput] = useState('');
   const [mapSettings,setMapSettings] = useState(false);
   const [saving,setSaving] = useState(false);
   const [notice,setNotice] = useState('');
@@ -61,6 +60,19 @@ export default function App() {
     return ()=>subscription.unsubscribe();
   },[]);
   useEffect(()=>{ if(supabase && isDiscordUser && session?.user){ loadMarkers(); syncAtlasProfile(); } else { setMarkers([]); setOwnedMarkerIds([]);setAtlasRole('viewer');setEditMode(false);setLoading(false); } },[session, isDiscordUser]);
+  useEffect(()=>{
+    if(!supabase || !isDiscordUser || !session?.user){ setMapUrl(''); return; }
+    let active=true;
+    const refreshMapUrl=async()=>{
+      const {data,error}=await supabase.storage.from('atlas-map-base').createSignedUrl('world-map-base',3600);
+      if(!active)return;
+      if(error){ setMapUrl(''); if(error.message && !/not found|object not found/i.test(error.message)) setNotice('Impossibile caricare la base cartografica: '+error.message); return; }
+      setMapUrl(data?.signedUrl||'');
+    };
+    refreshMapUrl();
+    const refreshTimer=setInterval(refreshMapUrl,50*60*1000);
+    return ()=>{ active=false; clearInterval(refreshTimer); };
+  },[session,isDiscordUser]);
   async function syncAtlasProfile(){
     const user=session?.user;if(!user)return;
     const profile={user_id:user.id,display_name:discordName(user),avatar_url:discordAvatar(user),updated_at:new Date().toISOString()};
@@ -148,7 +160,22 @@ export default function App() {
   function exportJson(){const blob=new Blob([JSON.stringify(markers,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='hogwarts-atlas-markers.json';a.click();URL.revokeObjectURL(url);}
   async function exportPersonalData(){if(!session)return;const {data,error}=await supabase.from('atlas_markers').select('*').eq('owner_id',session.user.id);if(error){setNotice('Esportazione dei tuoi dati non riuscita: '+error.message);return;}const u=session.user;const payload={exported_at:new Date().toISOString(),account:{id:u.id,provider:u.app_metadata?.provider||'discord',username:discordName(u),avatar_url:discordAvatar(u)},markers:data||[]};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='hogwarts-atlas-miei-dati.json';a.click();URL.revokeObjectURL(url);}
   async function importJson(e){const f=e.target.files?.[0];if(!f||!session||!canEdit||!editMode){setNotice('Importazione disponibile solo in modalità modifica.');return;}try{const parsed=JSON.parse(await f.text());if(!Array.isArray(parsed))throw new Error('Il file deve contenere un array JSON.');const rows=parsed.map(({id,created_at,updated_at,...m})=>({...m,owner_id:session.user.id}));const {error}=await supabase.from('atlas_markers').insert(rows);if(error)throw error;loadMarkers();setNotice('Importazione completata.');}catch(err){setNotice('Importazione non riuscita: '+err.message);}e.target.value='';}
-  async function uploadMap(e){const f=e.target.files?.[0];if(!f)return;const url=URL.createObjectURL(f);setMapUrl(url);setMapUrlInput(url);setNotice('Anteprima locale caricata. Per renderla disponibile a tutti, pubblica la base cartografica nel progetto.');}
+  async function uploadMap(e){
+    const f=e.target.files?.[0];
+    e.target.value='';
+    if(!f)return;
+    if(!isAdmin){setNotice('Solo l’amministratore può sostituire la base cartografica.');return;}
+    if(!['image/png','image/jpeg','image/webp'].includes(f.type)){setNotice('Formato non supportato. Usa PNG, JPG o WebP.');return;}
+    if(f.size>20*1024*1024){setNotice('La mappa supera il limite di 20 MB.');return;}
+    setSaving(true);
+    const {error}=await supabase.storage.from('atlas-map-base').upload('world-map-base',f,{upsert:true,contentType:f.type,cacheControl:'3600'});
+    if(error){setNotice('Caricamento della mappa non riuscito: '+error.message);setSaving(false);return;}
+    const {data,urlError}=await supabase.storage.from('atlas-map-base').createSignedUrl('world-map-base',3600);
+    setSaving(false);
+    if(urlError){setNotice('Mappa caricata, ma non è stato possibile generare il collegamento: '+urlError.message);return;}
+    setMapUrl(data?.signedUrl||'');
+    setNotice('Base cartografica pubblicata e condivisa con gli utenti Discord.');
+  }
   function toggleFilter(id){setActiveFilters(old=>old.includes(id)?old.filter(x=>x!==id):[...old,id]);}
   const categoryOf=id=>CATEGORIES.find(c=>c.id===id)||CATEGORIES[0];
   const discordName = user => user?.user_metadata?.global_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.user_metadata?.preferred_username || 'Esploratore';
@@ -192,10 +219,10 @@ export default function App() {
         <div className="sidebar-bottom"><div className="legend-note"><ShieldCheck size={16}/><span>Accesso Discord richiesto · Atlante riservato</span></div><button className="export-button" onClick={exportJson}>Esporta archivio JSON</button>{session&&<><button className="export-button" onClick={exportPersonalData}>Esporta i miei dati</button>{canEdit&&editMode&&<label className="import-button">Importa archivio JSON<input type="file" accept=".json,application/json" onChange={importJson}/></label>}</>}</div>
       </aside>
       <section className="map-area">
-        <div className="map-toolbar"><div className="map-title"><span className="eyebrow">HIGHLANDS · SCOZIA</span><h2>Mappa del mondo</h2>{editMode&&canEdit&&<span className="edit-state"><Pencil size={12}/> MODALITÀ MODIFICA ATTIVA</span>}</div><div className="map-tools"><button title="Carica base cartografica" onClick={()=>session?fileRef.current?.click():setAuthOpen(true)}><ImageIcon size={16}/><span>BASE MAPPA</span></button><input ref={fileRef} type="file" accept="image/*" hidden onChange={uploadMap}/><button title="Riduci zoom" onClick={()=>setZoom(z=>Math.max(.5,z-.15))}><Minus size={16}/></button><span className="zoom-value">{Math.round(zoom*100)}%</span><button title="Aumenta zoom" onClick={()=>setZoom(z=>Math.min(3,z+.15))}><Plus size={16}/></button><button title="Centra mappa" onClick={()=>{setZoom(1);setPan({x:0,y:0})}}><LocateFixed size={16}/></button></div></div>
-        <div className="map-frame" onMouseDown={startDrag} onMouseMove={moveDrag} onMouseUp={endDrag} onMouseLeave={endDrag}>
+        <div className="map-toolbar"><div className="map-title"><span className="eyebrow">HIGHLANDS · SCOZIA</span><h2>Mappa del mondo</h2>{editMode&&canEdit&&<span className="edit-state"><Pencil size={12}/> MODALITÀ MODIFICA ATTIVA</span>}</div><div className="map-tools">{isAdmin&&<button title="Carica o sostituisci la base cartografica condivisa" onClick={()=>fileRef.current?.click()} disabled={saving}><ImageIcon size={16}/><span>{saving?'CARICAMENTO…':'BASE MAPPA'}</span></button>}<input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={uploadMap}/><button title="Riduci zoom" onClick={()=>setZoom(z=>Math.max(.5,z-.15))}><Minus size={16}/></button><span className="zoom-value">{Math.round(zoom*100)}%</span><button title="Aumenta zoom" onClick={()=>setZoom(z=>Math.min(5,z+.15))}><Plus size={16}/></button><button title="Centra mappa" onClick={()=>{setZoom(1);setPan({x:0,y:0})}}><LocateFixed size={16}/></button></div></div>
+        <div className="map-frame" onMouseDown={startDrag} onMouseMove={moveDrag} onMouseUp={endDrag} onMouseLeave={endDrag} onWheel={e=>{e.preventDefault();setZoom(z=>Math.max(.5,Math.min(5,z*(e.deltaY<0?1.12:.89))))}}>
           <div className="map-grid" style={{transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`}} ref={mapRef} onClick={mapClick}>
-            {mapUrl?<img className="map-image" src={mapUrl} alt="Base cartografica caricata"/>:<div className="map-placeholder"><div className="placeholder-ring ring-one"/><div className="placeholder-ring ring-two"/><div className="placeholder-compass">✥</div><div className="placeholder-content"><div className="placeholder-emblem">✦</div><span className="eyebrow">HOGWARTS LEGACY</span><h3>La mappa attende<br/>il suo esploratore</h3><p>La base cartografica globale originale non è ancora stata inserita.</p><small>Carica un'immagine della mappa per iniziare a posizionare i marker.</small></div><div className="map-label label-north">N O R D</div><div className="map-label label-east">HIGHLANDS</div><div className="map-label label-south">S C O Z I A</div></div>}
+            {mapUrl?<img className="map-image" src={mapUrl} alt="Base cartografica globale delle Highlands" draggable="false"/>:<div className="map-placeholder"><div className="placeholder-ring ring-one"/><div className="placeholder-ring ring-two"/><div className="placeholder-compass">✥</div><div className="placeholder-content"><div className="placeholder-emblem">✦</div><span className="eyebrow">HOGWARTS LEGACY</span><h3>La mappa attende<br/>il suo esploratore</h3><p>La base cartografica globale originale non è ancora stata inserita.</p><small>Carica un'immagine della mappa per iniziare a posizionare i marker.</small></div><div className="map-label label-north">N O R D</div><div className="map-label label-east">HIGHLANDS</div><div className="map-label label-south">S C O Z I A</div></div>}
             {visibleMarkers.map(m=><button key={m.id} className={'map-marker '+(selected===m.id?'selected':'')} style={{left:(m.map_x*100)+'%',top:(m.map_y*100)+'%', '--marker-color':categoryOf(m.category).color}} title={m.title} onClick={e=>{e.stopPropagation();setSelected(m.id)}}><span className="marker-pip">{categoryOf(m.category).icon}</span><span className="marker-tooltip">{m.title}</span></button>)}
           </div>
           <div className="map-instruction"><MapPin size={14}/> {!canEdit?'MODALITÀ VISUALIZZAZIONE · SOLO CONSULTAZIONE':!editMode?'ATTIVA MODALITÀ MODIFICA PER AGGIUNGERE PUNTI':'CLICCA SULLA MAPPA PER AGGIUNGERE UN PUNTO'}</div>

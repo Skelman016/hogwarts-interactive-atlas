@@ -70,3 +70,5 @@
 .permission-toggle{padding:8px 10px;background:#26372b;border:1px solid #66734f;color:#d6c99f;font-size:8px;letter-spacing:.7px;white-space:nowrap}
 .permission-toggle.granted{background:#342723;border-color:#795349;color:#e0a99b}.permission-toggle:disabled{opacity:.5}
 @media(max-width:680px){.mode-button{padding:8px;font-size:8px}.mode-button span{display:none}.admin-account-row{align-items:flex-start;flex-direction:column}.permission-toggle{width:100%}}
+
+.map-frame{touch-action:none}.map-image{user-select:none;-webkit-user-drag:none}@media(max-width:680px){.top-actions{gap:7px}.top-discord-user span{display:none}.map-tools{gap:3px}.map-toolbar{gap:8px}.map-title h2{font-size:17px}.map-instruction{max-width:calc(100% - 20px);white-space:normal;text-align:center;justify-content:center}}

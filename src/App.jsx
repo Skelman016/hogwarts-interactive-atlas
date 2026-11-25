@@ -85,6 +85,13 @@ export default function App() {
   useEffect(()=>{
     const frame=frameRef.current;
     if(!frame)return;
+    const onWheel=e=>handleWheel(e);
+    frame.addEventListener('wheel',onWheel,{passive:false});
+    return ()=>frame.removeEventListener('wheel',onWheel);
+  },[zoom]);
+  useEffect(()=>{
+    const frame=frameRef.current;
+    if(!frame)return;
     const update=()=>setFrameSize({width:frame.clientWidth,height:frame.clientHeight});
     update();
     const observer=new ResizeObserver(update);
@@ -198,12 +205,13 @@ export default function App() {
     const y=Math.max(0,Math.min(1,(localY-bounds.top)/bounds.height));
     openNew(x,y);
   }
-  function startDrag(e){ if(e.button!==0 && e.pointerType!=='touch')return; e.currentTarget.setPointerCapture?.(e.pointerId);setDrag({x:e.clientX,y:e.clientY,px:pan.x,py:pan.y,moved:false}); }
+  function startDrag(e){ if(e.target.closest('button, input, a, [role=\"button\"]'))return; if(e.button!==0 && e.pointerType!=='touch')return; e.currentTarget.setPointerCapture?.(e.pointerId);setDrag({x:e.clientX,y:e.clientY,px:pan.x,py:pan.y,moved:false}); }
   function moveDrag(e){if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;setDrag({...drag,moved:drag.moved||Math.abs(dx)+Math.abs(dy)>4});if(drag.moved||Math.abs(dx)+Math.abs(dy)>4){suppressClickRef.current=true;setPan({x:drag.px+dx,y:drag.py+dy});}}
   function endDrag(){setDrag(null);}
   function handleWheel(e){
     e.preventDefault();
-    const frame=e.currentTarget.getBoundingClientRect();
+    const frame=frameRef.current?.getBoundingClientRect();
+    if(!frame)return;
     const pointerX=e.clientX-frame.left;
     const pointerY=e.clientY-frame.top;
     const factor=e.deltaY<0?1.15:1/1.15;
@@ -322,7 +330,7 @@ export default function App() {
       </aside>
       <section className="map-area">
         <div className="map-toolbar"><div className="map-title"><span className="eyebrow">HIGHLANDS · SCOZIA</span><h2>Mappa del mondo</h2>{editMode&&canEdit&&<span className="edit-state"><Pencil size={12}/> MODALITÀ MODIFICA ATTIVA</span>}</div><div className="map-tools">{isAdmin&&<button title="Carica o sostituisci la base cartografica condivisa" onClick={()=>fileRef.current?.click()} disabled={saving}><ImageIcon size={16}/><span>{saving?'CARICAMENTO…':'BASE MAPPA'}</span></button>}<input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={uploadMap}/><button title="Riduci zoom" onClick={()=>setZoom(z=>Math.max(.5,z-.15))}><Minus size={16}/></button><span className="zoom-value">{Math.round(zoom*100)}%</span><button title="Aumenta zoom" onClick={()=>setZoom(z=>Math.min(5,z+.15))}><Plus size={16}/></button><button title="Centra mappa" onClick={()=>{setZoom(1);setPan({x:0,y:0})}}><LocateFixed size={16}/></button></div></div>
-        <div className="map-frame" ref={frameRef} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerLeave={endDrag} onWheel={handleWheel}>
+        <div className="map-frame" ref={frameRef} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerLeave={endDrag}>
           <div className="map-grid" style={{transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`}} ref={mapRef} onClick={mapClick}>
             {mapUrl?<img className="map-image" src={mapUrl} alt="Base cartografica globale delle Highlands" draggable="false" onLoad={e=>setImageSize({width:e.currentTarget.naturalWidth,height:e.currentTarget.naturalHeight})} onError={()=>{setMapUrl("");setImageSize({width:0,height:0});setNotice("La base cartografica non è disponibile. L’amministratore può caricarla dal comando BASE MAPPA.");}}/>:<div className="map-placeholder"><div className="placeholder-ring ring-one"/><div className="placeholder-ring ring-two"/><div className="placeholder-compass">✥</div><div className="placeholder-content"><div className="placeholder-emblem">✦</div><span className="eyebrow">HOGWARTS LEGACY</span><h3>La mappa attende<br/>il suo esploratore</h3><p>La base cartografica globale originale non è ancora stata inserita.</p><small>Carica un'immagine della mappa per iniziare a posizionare i marker.</small></div><div className="map-label label-north">N O R D</div><div className="map-label label-east">HIGHLANDS</div><div className="map-label label-south">S C O Z I A</div></div>}
             {visibleMarkers.map(m=><button key={m.id} className={'map-marker '+(selected===m.id?'selected':'')} style={{left:((mapBounds.left+m.map_x*mapBounds.width)/(frameSize.width||1)*100)+'%',top:((mapBounds.top+m.map_y*mapBounds.height)/(frameSize.height||1)*100)+'%', '--marker-color':categoryOf(m.category).color, '--marker-size':m.category==='village'?'18px':'24px'}} title={m.title} onClick={e=>{e.stopPropagation();setSelected(m.id)}}><span className="marker-pip">{categoryOf(m.category).icon}</span><span className="marker-tooltip">{m.title}</span></button>)}

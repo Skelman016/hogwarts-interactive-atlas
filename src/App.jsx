@@ -194,11 +194,16 @@ export default function App() {
     const frame=frameRef.current;
     if(!frame)return;
     const rect=frame.getBoundingClientRect();
+    const width=frame.clientWidth||rect.width;
+    const height=frame.clientHeight||rect.height;
+    const fit=imageSize.width&&imageSize.height?Math.min(width/imageSize.width,height/imageSize.height):1;
+    const contentWidth=imageSize.width?imageSize.width*fit:width;
+    const contentHeight=imageSize.height?imageSize.height*fit:height;
+    const bounds={left:(width-contentWidth)/2,top:(height-contentHeight)/2,width:contentWidth,height:contentHeight};
     const localX=(e.clientX-rect.left-pan.x)/zoom;
     const localY=(e.clientY-rect.top-pan.y)/zoom;
-    const bounds=mapBounds;
-    const x=Math.max(0,Math.min(1,(localX-bounds.left)/bounds.width));
-    const y=Math.max(0,Math.min(1,(localY-bounds.top)/bounds.height));
+    const x=Math.max(0,Math.min(1,(localX-bounds.left)/Math.max(1,bounds.width)));
+    const y=Math.max(0,Math.min(1,(localY-bounds.top)/Math.max(1,bounds.height)));
     openNew(x,y);
   }
   function startDrag(e){ if(e.target.closest('button, input, a, [role=\"button\"]'))return; if(e.button!==0 && e.pointerType!=='touch')return; e.currentTarget.setPointerCapture?.(e.pointerId);setDrag({x:e.clientX,y:e.clientY,px:pan.x,py:pan.y,moved:false}); }
@@ -329,7 +334,7 @@ export default function App() {
         <div className="map-frame" ref={frameRef} onWheel={handleWheel} onClick={mapClick} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerLeave={endDrag}>
           <div className="map-grid" style={{transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`}} ref={mapRef}>
             {mapUrl?<img className="map-image" src={mapUrl} alt="Base cartografica globale delle Highlands" draggable="false" onLoad={e=>setImageSize({width:e.currentTarget.naturalWidth,height:e.currentTarget.naturalHeight})} onError={()=>{setMapUrl("");setImageSize({width:0,height:0});setNotice("La base cartografica non è disponibile. L’amministratore può caricarla dal comando BASE MAPPA.");}}/>:<div className="map-placeholder"><div className="placeholder-ring ring-one"/><div className="placeholder-ring ring-two"/><div className="placeholder-compass">✥</div><div className="placeholder-content"><div className="placeholder-emblem">✦</div><span className="eyebrow">HOGWARTS LEGACY</span><h3>La mappa attende<br/>il suo esploratore</h3><p>La base cartografica globale originale non è ancora stata inserita.</p><small>Carica un'immagine della mappa per iniziare a posizionare i marker.</small></div><div className="map-label label-north">N O R D</div><div className="map-label label-east">HIGHLANDS</div><div className="map-label label-south">S C O Z I A</div></div>}
-            {visibleMarkers.map(m=><button key={m.id} className={'map-marker '+(selected===m.id?'selected':'')} style={{left:((mapBounds.left+m.map_x*mapBounds.width)/(frameSize.width||1)*100)+'%',top:((mapBounds.top+m.map_y*mapBounds.height)/(frameSize.height||1)*100)+'%', '--marker-color':categoryOf(m.category).color, '--marker-size':m.category==='village'?'18px':'24px'}} title={m.title} onClick={e=>{e.stopPropagation();setSelected(m.id)}}><span className="marker-pip">{categoryOf(m.category).icon}</span><span className="marker-tooltip">{m.title}</span></button>)}
+            {visibleMarkers.map(m=><button key={m.id} className={'map-marker '+(selected===m.id?'selected':'')} style={{left:Math.max(2,Math.min(98,((mapBounds.left+m.map_x*mapBounds.width)/(frameSize.width||mapBounds.width||1)*100)))+'%',top:Math.max(2,Math.min(98,((mapBounds.top+m.map_y*mapBounds.height)/(frameSize.height||mapBounds.height||1)*100)))+'%', '--marker-color':categoryOf(m.category).color, '--marker-size':m.category==='village'?'18px':'24px'}} title={m.title} onClick={e=>{e.stopPropagation();setSelected(m.id)}}><span className="marker-pip">{categoryOf(m.category).icon}</span><span className="marker-tooltip">{m.title}</span></button>)}
           </div>
           <div className="map-instruction"><MapPin size={14}/> {!canEdit?'MODALITÀ VISUALIZZAZIONE · SOLO CONSULTAZIONE':!editMode?'ATTIVA MODALITÀ MODIFICA PER AGGIUNGERE PUNTI':'CLICCA SULLA MAPPA PER AGGIUNGERE UN PUNTO'}</div>
           <div className="map-coordinates">MAP DATA · HOGWARTS LEGACY <span>◇</span> WIZARDING ATLAS</div>

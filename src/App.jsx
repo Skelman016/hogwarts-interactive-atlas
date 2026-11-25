@@ -169,11 +169,14 @@ export default function App() {
     setSaving(true);
     const previous=selected?markers.find(m=>m.id===selected):null;
     const payload={title,category:draft.category,description:(draft.description||'').trim().slice(0,5000),status:STATUSES.some(s=>s.id===draft.status)?draft.status:'unvisited',difficulty:['easy','medium','hard','boss'].includes(draft.difficulty)?draft.difficulty:null,tags:(draft.tags||'').split(',').map(t=>t.trim()).filter(Boolean).slice(0,30),image_path:draft.image_path||null,map_x:pendingPoint.x,map_y:pendingPoint.y};
-    const query=selected?supabase.from('atlas_markers').update(payload).eq('id',selected):supabase.from('atlas_markers').insert({...payload,owner_id:session.user.id});
-    const {error}=await query;
-    if(error){setSaving(false);setNotice('Salvataggio non riuscito: '+error.message);return;}
+    const query=selected
+      ?supabase.from('atlas_markers').update(payload).eq('id',selected).select('id,owner_id,title,category,description,map_x,map_y,status,difficulty,tags,image_path,metadata,created_at,updated_at').single()
+      :supabase.from('atlas_markers').insert({...payload,owner_id:session.user.id}).select('id,owner_id,title,category,description,map_x,map_y,status,difficulty,tags,image_path,metadata,created_at,updated_at').single();
+    const {data:savedMarker,error}=await query;
+    if(error||!savedMarker){setSaving(false);setNotice('Salvataggio non verificato: '+(error?.message||'il database non ha restituito il marker. Riprova.'));return;}
     if(previous?.image_path&&previous.image_path!==payload.image_path){await supabase.storage.from('atlas-marker-images').remove([previous.image_path]);}
-    setSaving(false);setModal(false);setSelected(null);setDraftImageUrl('');setDetailImageUrl('');setNotice('Marker salvato.');await loadMarkers();
+    setMarkers(current=>selected?current.map(m=>m.id===savedMarker.id?savedMarker:m):[savedMarker,...current]);
+    setSaving(false);setModal(false);setSelected(savedMarker.id);setDraftImageUrl('');setDetailImageUrl('');setNotice('Marker salvato e verificato nel database.');await loadMarkers();
   }
   async function deleteMarker(id){
     if(!session||!canEdit||!editMode||!confirm('Eliminare definitivamente questo marker?'))return;
